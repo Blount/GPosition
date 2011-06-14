@@ -1,6 +1,6 @@
 {
     "name": "GPosition",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "description": "Recherche de position de site ou de page dans le SERP de Google",
     "content_scripts" : [{
         "matches": [
