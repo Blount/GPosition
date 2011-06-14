@@ -1,0 +1,22 @@
+{
+    "name": "GPosition",
+    "version": "1.2.1",
+    "description": "Recherche de position de site ou de page dans le SERP de Google",
+    "content_scripts" : [{
+        "matches": [
+            "http://www.google.fr/*",
+            "http://www.google.de/*",
+            "http://www.google.be/*",
+            "http://www.google.dk/*",
+            "http://www.google.es/*",
+            "http://www.google.fi/*",
+            "http://www.google.lu/*",
+            "http://www.google.nl/*",
+            "http://www.google.pl/*",
+            "http://www.google.uk/*",
+            "http://www.google.ch/*",
+            "http://www.google.com/*"
+        ],
+        "js": ["greasedmootools.js", "gposition.js"]
+    }]
+}
