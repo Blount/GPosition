@@ -4,7 +4,7 @@
 // @description    Recherche de position de site ou de page dans le SERP de Google
 // @include        http://www.google.*
 // @require        http://userscripts.org/scripts/source/44063.user.js
-// @version        1.2.1
+// @version        1.2.2
 // ==/UserScript==
 
 if (typeof unsafeWindow == "undefined") {
@@ -62,14 +62,14 @@ var loadDatas = function() {
     if (o) {
         options = $merge(options, o);
     }
-}
+};
 loadDatas();
 
 var saveDatas = function () {
     localStorage.setItem('googlePosition', JSON.stringify(datas));
     localStorage.setItem('googlePositionHistory', JSON.stringify(historyPosition));
     localStorage.setItem('googlePositionOptions', JSON.stringify(options));
-}
+};
 
 var exportDatas = function () {
     saveDatas();
@@ -77,7 +77,7 @@ var exportDatas = function () {
     return JSON.stringify({
         position: datas, history: historyPosition, options: options
     });
-}
+};
 var importDatas = function (string) {
     var e = JSON.parse(string);
     if (e) {
@@ -515,7 +515,7 @@ var deleteSiteFromKeyword = function (keyword, site) {
     historyPosition = newHistory;
     updateGooglePositionHistory();
     saveDatas();
-}
+};
 var searchSiteFromKeyword = function(keyword, site) {
 	
 	if (site) {
@@ -749,7 +749,7 @@ closeGooglePositionImport = function () {
 var init = function () {
     
     /**
-     * Ajoute lemenu pour la configuration
+     * Ajoute le menu pour la configuration
      */
     if (!document.id('positionGoogleTab')) {
         var ol = document.id('gbg').getElement('ol.gbtc');
@@ -843,7 +843,14 @@ var init = function () {
     
     form.addEvent('submit', function (event) {
         event.stop();
-        datas.address = document.id('positionGoogleUrl').value;
+        
+        var address = document.id('positionGoogleUrl').get('value');
+        if (!address.test(/^https?:\/\//)) {
+        	address = 'http://' + document.id('positionGoogleUrl').get('value');
+        	document.id('positionGoogleUrl').set('value', address);
+        }
+        
+        datas.address = address;
         datas.currentPage = 1;
         datas.maxPages = 10;
         datas.position = 0;
@@ -873,7 +880,7 @@ var init = function () {
     }
     
     return true;
-}
+};
 
 
 var timer;
