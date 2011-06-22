@@ -4,7 +4,7 @@
 // @description    Recherche de position de site ou de page dans le SERP de Google
 // @include        http://www.google.*
 // @require        http://userscripts.org/scripts/source/44063.user.js
-// @version        1.2.2
+// @version        1.2.3
 // ==/UserScript==
 
 if (typeof unsafeWindow == "undefined") {
@@ -174,9 +174,6 @@ var backupPosition = function(url, position) {
     
     for (var i = 0; i < historyPosition[search].length; i++) {
         if (historyPosition[search][i][0] == url) {
-            if (historyPosition[search][i][1].length > 1 && historyPosition[search][i][1][historyPosition[search][i][1].length - 1].position.toInt() == position.toInt()) {
-                return;
-            }
             historyPosition[search][i][1].push({'time': new Date().getTime(), 'position': position});
             saveDatas();
             return;
