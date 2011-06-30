@@ -392,155 +392,7 @@ var searchAddress = function () {
 };
 
 
-/**
- * Ferme toutes les fenêtres
- */
-var closeGooglePositionAll = function (e) {
-    if (e && ($(e.target).hasClass('positionGoogleContainer') || $(e.target).getParent('div.positionGoogleContainer'))) {
-        return;
-    }
-    closeGooglePositionOptions();
-    closeGooglePositionHistory();
-    closeGooglePositionExport();
-    closeGooglePositionImport();
-    closeGooglePositionAbout();
-};
-$$('body')[0].addEvent('click', closeGooglePositionAll);
 
-
-/**
- * Fenêtre de l'historique de l'extension
- */
-var openGooglePositionHistory = function (event) {
-    closeGooglePositionAll();
-    
-    if (!document.id('positionGoogleHistoryContainer')) {
-        var container = new Element('div', {
-            id: 'positionGoogleHistoryContainer',
-            styles: {
-                position: 'absolute', top: 5, left: '50%',
-                margin: '20px 0 0 -300px',
-                width: 600,
-                'max-height': 400,
-                overflow: 'auto',
-                padding: '5px 33px',
-                'border-radius': '7px',
-                '-moz-border-radius': '7px',
-                '-webkit-border-radius': '7px',
-                border: '2px solid #AAA',
-                'font-size': 11,
-                background: '#FFF',
-                'box-shadow': '0 0 30px #999',
-                '-moz-box-shadow': '0 0 30px #999',
-                '-webkit-box-shadow': '0 0 30px #999',
-                'z-index': 9999,
-                'display': 'none'
-            },
-            'class': 'positionGoogleContainer'
-        }).set('html',
-            '<h2>Historique enregistré</h2>' +
-            '<div class="content"></div>' +
-            '<div class="lsbb" style="float: left;"><input type="button" value="Fermer" class="lsb" /></div>'
-        );
-        container.inject(document.body, 'top');
-        
-        container.getElement('input[type=button]').addEvent('click', closeGooglePositionHistory);
-    }
-    updateGooglePositionHistory();
-    
-    document.id('positionGoogleHistoryContainer').setStyles({
-        display: 'block', opacity: 0
-    }).setStyle('opacity', 1);
-};
-var closeGooglePositionHistory = function () {
-    if (document.id('positionGoogleHistoryContainer')) {
-        document.id('positionGoogleHistoryContainer').setStyle('display', 'none');
-    }
-};
-var updateGooglePositionHistory = function () {
-    if (!document.id('positionGoogleHistoryContainer')) {
-        openGooglePositionHistory();
-    }
-    
-    var content = document.id('positionGoogleHistoryContainer')
-        .getElement('div.content').empty();
-    
-    var date = new Date();
-    
-    $each(historyPosition, function (sites, keyword) {
-        var title = new Element('h3', {text: keyword})
-			.adopt(new Element('img', {
-					src: 'http://ilatumi.org/positiongoogle/search.png',
-					alt: 'rechercher',
-					title: 'Lancer la recherche sur « '+keyword+' »',
-					styles: {margin: '0 0 0 5px', 'vertical-align': 'middle', cursor: 'pointer'}
-				}).addEvent('click', function (e) {
-					searchSiteFromKeyword(keyword);
-				}));
-        var table = new Element('table').setStyles({
-            border: '1px solid #DDD', 'margin': '10px 0',
-            'border-collapse': 'collapse',
-            width: '100%', 'text-align': 'center'
-        }).adopt(
-            new Element('thead').adopt(
-                new Element('th', {text: 'Lien'}),
-                new Element('th', {text: 'Dernière position', styles: {width: 100}}),
-                new Element('th', {text: 'Quand ?', styles: {width: 100}}),
-                new Element('th', {styles: {width: 25}}),
-                new Element('th', {styles: {width: 25}})
-            ),
-            new Element('tbody')
-        );
-        var body = table.getElement('tbody');
-        
-        var dateStr;
-        for (var i = 0; i < sites.length; i++) {
-            date.setTime(sites[i][1].getLast().time);
-            dateStr = "";
-            if (date.getDate() < 10) {
-                dateStr += "0" + date.getDate();
-            } else {
-                dateStr += date.getDate();
-            }
-            dateStr += " / ";
-            if (date.getMonth() < 9) {
-                dateStr += "0" + (date.getMonth() + 1);
-            } else {
-                dateStr += date.getMonth();
-            }
-            dateStr += " / "+date.getFullYear();
-            
-            body.adopt(new Element('tr').adopt(
-                new Element('td', {text: sites[i][0]}),
-                new Element('td', {text: sites[i][1].getLast().position}),
-                new Element('td', {text: dateStr}),
-                new Element('td', {html: '<a href="#"><img src="http://ilatumi.org/positiongoogle/delete.png" '+
-						'alt="supprimer" title="Supprimer cette entrée ?" /></a>', 'class': 'delete'})
-                    .addEvent('click', function (e) {
-                        e.stop();
-                        deleteSiteFromKeyword(keyword, this.getParent('tr').getElement('td').get('text'));
-                    }),
-                new Element('td', {html: '<a href="#"><img src="http://ilatumi.org/positiongoogle/search.png" '+
-						'alt="rechercher" title="Rechercher à nouveau ce site avec le mot clé « '+keyword+' »" /></a>', 'class': 'search'})
-                    .addEvent('click', function (e) {
-                        e.stop();
-                        searchSiteFromKeyword(keyword, this.getParent('tr').getElement('td').get('text'));
-                    })
-            ));
-        }
-        
-        table.getElements('td').setStyle('border-top', '1px solid #DDD');
-        
-        content.adopt(title, table);
-    });
-    
-    if (content.get('html') == '') {
-        content.adopt(new Element('p', {
-            text: 'L\'historique est vide.'
-        }));
-        return;
-    }
-};
 var deleteSiteFromKeyword = function (keyword, site) {
     var newHistory = {};
     $each(historyPosition, function (sites, _keyword) {
@@ -583,339 +435,87 @@ var searchSiteFromKeyword = function(keyword, site) {
 };
 
 
-/**
- * Fenêtre des paramètres de l'extension
- */
-var openGooglePositionOptions = function (event) {
-    closeGooglePositionAll();
+var renderMenu = function (parent) {
+    if (document.id('positionGoogleTab')) {
+    	return;
+    }
+    var ol = document.id('gbg').getElement('ol.gbtc');
+    var separator = new Element('li', {'class': 'gbt gbtb'})
+        .set('html', '<span class="gbts"></span>');
+    separator.inject(ol, 'top');
+    var tab = new Element('li', {id: 'positionGoogleTab', 'class': 'gbt'}).adopt(
+        new Element('a', {href: '#', 'class': 'gbgt'}).set('html',
+            '<span class="gbtb2"></span><span class="gbts"><span style="font-weight: bold;">GooglePosition</span></span>'
+        )
+    );
     
-    if (!document.id('positionGoogleOptionsContainer')) {
-        var container = new Element('div', {
-            id: 'positionGoogleOptionsContainer',
-            styles: {
-                position: 'absolute', top: '50%', left: '50%',
-                margin: '-100px 0 0 -300px',
-                width: 600,
-                padding: 5,
-                'padding-left': 33,
-                'border-radius': '7px',
-                '-moz-border-radius': '7px',
-                '-webkit-border-radius': '7px',
-                border: '2px solid #AAA',
-                'font-size': 11,
-                background: '#FFF',
-                'box-shadow': '0 0 30px #999',
-                '-moz-box-shadow': '0 0 30px #999',
-                '-webkit-box-shadow': '0 0 30px #999',
-                'z-index': 9999,
-                'display': 'none'
-            },
-            'class': 'positionGoogleContainer'
-        }).set('html',
-            '<h2>Configuration de l\'extension GooglePosition</h2>' +
-            '<form action="" method="post">\
-                <dl>\
-                    <dt><label>Afficher la position des sites :</label></dt>\
-                    <dd id="positionGoogleOptionsDisplayPosition">\
-                        <input type="radio" value="1" name="positionGoogleOptionsDisplayPosition" id="positionGoogleOptionsDisplayPosition1" checked="checked" />\
-                        <label for="positionGoogleOptionsDisplayPosition1">Oui</label>\
-                        <input type="radio" value="0" name="positionGoogleOptionsDisplayPosition" id="positionGoogleOptionsDisplayPosition0" />\
-                        <label for="positionGoogleOptionsDisplayPosition0">Non</label>\
-                    </dd>\
-                    <dt><label>Garder en mémoire la position des sites recherchés :</label></dt>\
-                    <dd id="positionGoogleOptionsStorePosition">\
-                        <input type="radio" value="1" name="positionGoogleOptionsStorePosition" id="positionGoogleOptionsStorePosition1" checked="checked" />\
-                        <label for="positionGoogleOptionsStorePosition1">Oui</label>\
-                        <input type="radio" value="0" name="positionGoogleOptionsStorePosition" id="positionGoogleOptionsStorePosition0" />\
-                        <label for="positionGoogleOptionsStorePosition0">Non</label>\
-                    </dd>\
-		            <dt>\
-            			<label for="positionGoogleOptionsHighlightSite">Mettre en surbrillance les sites suivants :<br />\
-            			(une URL par ligne, et avec les http (ou https) s\'il vous plait):</label>\
-            		</dt>\
-		            <dd>\
-		            	<textarea id="positionGoogleOptionsHighlightSite" name="positionGoogleOptionsHighlightSite" cols="70" rows="6" style="width: 80%;"></textarea>\
-		            </dd>\
-                    <dt></dt>\
-                    <dd style="margin-top: 10px;">\
-                        <div class="lsbb" style="float: left;"><input type="submit" value="Sauvegarder" class="lsb" /></div>\
-                        <div class="lsbb" style="float: left; margin-left: 10px;"><input type="button" value="Fermer" class="lsb" /></div>\
-                    </dd>\
-                </dl>\
-            </form>'
-        );
-        container.inject(document.body, 'top');
-        
-        container.getElement('form').addEvent('submit', function (event) {
-            event.stop();
-            
-            options.displayPosition = document.id('positionGoogleOptionsDisplayPosition0').checked?false:true;
-            options.backupPosition = document.id('positionGoogleOptionsStorePosition0').checked?false:true;
-            
-            if (!options.displayPosition) {
-                var positions = document.getElements('span.spanPositionGoogle');
-                if (positions.length > 0) {
-                    positions.destroy();
-                }
-            }
-            var sites = [];
-            document.id('positionGoogleOptionsHighlightSite').get('value').split("\n").each(function (site) {
-            	site = site.trim();
-            	if (site.match(/^https?:\/\//)) {
-                    sites.push(site);
-            	}
-            });
-            options.highlightSites = sites;
-            highlightSites(options.highlightSites);
-
-            saveDatas();
-            closeGooglePositionOptions();
-        });
-        container.getElement('input[type=button]').addEvent('click', closeGooglePositionOptions);
-    }
-    document.id('positionGoogleOptionsDisplayPosition'+(options.displayPosition?1:0)).checked = true;
-    document.id('positionGoogleOptionsStorePosition'+(options.backupPosition?1:0)).checked = true;
-    if (options.highlightSites.join) {
-        document.id('positionGoogleOptionsHighlightSite').set('value', options.highlightSites.join("\n"));
-    }
+    var menu = new Element('div').addClass('gbm').set('html',
+        '<div class="gbmc"><ol class="gbmcc">\
+            <li id="menu-google-position-options" class="gbkc gbmtc"><a href="#" class="gbmt">Paramètrer l\'extension</a></li>\
+            <li id="menu-google-position-history" class="gbkc gbmtc"><a href="#" class="gbmt">Voir l\'historique</a></li>\
+            <li id="menu-google-position-export" class="gbkc gbmtc"><a href="#" class="gbmt">Exporter les données</a></li>\
+            <li id="menu-google-position-import" class="gbkc gbmtc"><a href="#" class="gbmt">Importer les données</a></li>\
+            <li id="menu-google-position-erase" class="gbkc gbmtc"><a href="#" class="gbmt">Effacer les données</a></li>\
+    		<li id="menu-google-position-about" class="gbkc gbmtc"><a href="#" class="gbmt">À propos</a></li>\
+        </ol></div>'
+    ).inject(tab, 'bottom');
     
-    document.id('positionGoogleOptionsContainer').setStyles({
-        display: 'block', opacity: 0
-    }).setStyle('opacity', 1);
-};
-closeGooglePositionOptions = function () {
-    if (document.id('positionGoogleOptionsContainer')) {
-        document.id('positionGoogleOptionsContainer').setStyle('display', 'none');
-    }
-};
-
-
-/**
- * Fenêtre pour export de l'extension
- */
-var openGooglePositionExport = function (event) {
-    closeGooglePositionAll();
+    tab.inject(ol, 'top').addEvent('click', function (e) {
+        e.stop();
+        this.toggleClass('gbto');
+        menu.setStyle('display', this.hasClass('gbto')?'block':'none');
+    });
     
-    if (!document.id('positionGoogleExportContainer')) {
-        var container = new Element('div', {
-            id: 'positionGoogleExportContainer',
-            styles: {
-                position: 'absolute', top: '50%', left: '50%',
-                margin: '-100px 0 0 -200px',
-                width: 400,
-                padding: 5,
-                'padding-left': 33,
-                'border-radius': '7px',
-                '-moz-border-radius': '7px',
-                '-webkit-border-radius': '7px',
-                border: '2px solid #AAA',
-                'font-size': 11,
-                background: '#FFF',
-                'box-shadow': '0 0 30px #999',
-                '-moz-box-shadow': '0 0 30px #999',
-                '-webkit-box-shadow': '0 0 30px #999',
-                'z-index': 9999,
-                'display': 'none'
-            },
-            'class': 'positionGoogleContainer'
-        }).set('html',
-            '<h2>Exportation des données de cet ordinateur</h2>' +
-            '<p>Vous pouvez enregistrer cette chaîne de caractères dans un fichier afin de sauvegarder vos informations.</p>' +
-            '<form action="" method="post">\
-                <p><label>Exportation :</label></p>\
-                <p><textarea id="positionGoogleExport" cols="50" rows="3" style="width: 100%;"></textarea></p>\
-                <p><div class="lsbb" style="display: inline-block"><input type="button" value="Fermer" class="lsb" /></div></p>\
-            </form>'
-        );
-        container.inject(document.body, 'top');
-        
-        container.getElement('input[type=button]').addEvent('click', closeGooglePositionExport);
-    }
-    
-    document.id('positionGoogleExport').set('value', exportDatas());
-    
-    document.id('positionGoogleExportContainer').setStyles({
-        display: 'block', opacity: 0
-    }).setStyle('opacity', 1);
-};
-closeGooglePositionExport = function () {
-    if (document.id('positionGoogleExportContainer')) {
-        document.id('positionGoogleExportContainer').setStyle('display', 'none');
-    }
+    document.id('menu-google-position-options').addEvent('click', function () {
+    	boxOptions.render().open();
+    });
+    document.id('menu-google-position-history').addEvent('click', function () {
+    	boxHistory.render().open();
+    });
+    document.id('menu-google-position-import').addEvent('click', function () {
+    	boxImport.render().open();
+    });
+    document.id('menu-google-position-export').addEvent('click', function () {
+    	boxExport.render().open();
+    });
+    document.id('menu-google-position-erase').addEvent('click', function () {
+        if (!window.confirm('Effacer toutes les données liées à l\extension ?')) {
+            return;
+        }
+        historyPosition = options = datas = {};
+        saveDatas();
+    });
+    document.id('menu-google-position-about').addEvent('click', function () {
+    	boxAbout.render().open();
+    });
 };
 
-
-/**
- * Fenêtre pour import de l'extension
- */
-var openGooglePositionImport = function (event) {
-    closeGooglePositionAll();
-    
-    if (!document.id('positionGoogleImportContainer')) {
-        var container = new Element('div', {
-            id: 'positionGoogleImportContainer',
-            styles: {
-                position: 'absolute', top: '50%', left: '50%',
-                margin: '-100px 0 0 -200px',
-                width: 400,
-                padding: 5,
-                'padding-left': 33,
-                'border-radius': '7px',
-                '-moz-border-radius': '7px',
-                '-webkit-border-radius': '7px',
-                border: '2px solid #AAA',
-                'font-size': 11,
-                background: '#FFF',
-                'box-shadow': '0 0 30px #999',
-                '-moz-box-shadow': '0 0 30px #999',
-                '-webkit-box-shadow': '0 0 30px #999',
-                'z-index': 9999,
-                'display': 'none'
-            },
-            'class': 'positionGoogleContainer'
-        }).set('html',
-            '<h2>Importations des données sur cet ordinateur</h2>' +
-            '<p>Vous pouvez importer ici une chaîne de caractères précédemment exportée.</p>' +
-            '<form action="" method="post">\
-                <p><label>Importation :</label></p>\
-                <p><textarea id="positionGoogleImport" cols="50" rows="3" style="width: 100%;"></textarea></p>\
-                <div>\
-                    <div class="lsbb" style="float: left;"><input type="submit" value="Importer" class="lsb" /></div>\
-                    <div class="lsbb" style="float: left; margin-left: 10px;"><input type="button" value="Fermer" class="lsb" /></div>\
-                </div>\
-            </form>'
-        );
-        container.inject(document.body, 'top');
-        
-        container.getElement('form').addEvent('submit', function (e) {
-            e.stop();
-            var value = document.id('positionGoogleImport').get('value');
-            if (value && window.confirm('Terminer l\'importation des données ? (écrase les données existantes)')) {
-                importDatas(value);
-                closeGooglePositionImport();
-                alert('Données importées.');
-            }
-        });
-        
-        container.getElement('input[type=button]').addEvent('click', closeGooglePositionImport);
-    }
-    document.id('positionGoogleImportContainer').setStyles({
-        display: 'block', opacity: 0
-    }).setStyle('opacity', 1);
-};
-closeGooglePositionImport = function () {
-    if (document.id('positionGoogleImportContainer')) {
-        document.id('positionGoogleImportContainer').setStyle('display', 'none');
-    }
-};
-
-
-
-/**
- * Fenêtre « À propos »
- */
-var openGooglePositionAbout = function (event) {
-    closeGooglePositionAll();
-    
-    if (!document.id('positionGoogleAboutContainer')) {
-        var container = new Element('div', {
-            id: 'positionGoogleAboutContainer',
-            styles: {
-                position: 'absolute', top: '50%', left: '50%',
-                margin: '-100px 0 0 -200px',
-                width: 400,
-                padding: 5,
-                'padding-left': 33,
-                'border-radius': '7px',
-                '-moz-border-radius': '7px',
-                '-webkit-border-radius': '7px',
-                border: '2px solid #AAA',
-                'font-size': 11,
-                background: '#FFF',
-                'box-shadow': '0 0 30px #999',
-                '-moz-box-shadow': '0 0 30px #999',
-                '-webkit-box-shadow': '0 0 30px #999',
-                'z-index': 9999,
-                'display': 'none'
-            },
-            'class': 'positionGoogleContainer'
-        }).set('html',
-            '<h2>À propos de GPosition - v'+version+'</h2>' +
-            '<p style="font-size: 14px; line-height: 16px;">' +
-            '	<img src="http://1.gravatar.com/avatar/774d9ade2d54af8618e03d036d2e86bf?s=50&r=G" alt="" style="float: left; display: block; margin: 0 5px 5px 0;" />' +
-            '	Blount - <a href="mailto:blount@ilatumi.org">blount@ilatumi.org</a><br />' +
-            '	Site - <a href="http://programmation-web.net" target="_blank">http://programmation-web.net</a><br />' +
-            '	<a href="http://programmation-web.net/gposition-aide-a-la-seo" target="_blank">Page de l\'extension</a>' +
-            '	| <a href="http://programmation-web.net/gposition-dernier-changement/" target="_blank">Derniers changements</a><br />' +
-            '</p>' +
-            '<form action="" method="post">\
-                <div>\
-                    <div class="lsbb" style="float: left; clear: both;"><input type="button" value="Fermer" class="lsb" /></div>\
-                </div>\
-            </form>'
-        );
-        container.inject(document.body, 'top');
-        container.getElement('input[type=button]').addEvent('click', closeGooglePositionAbout);
-    }
-    document.id('positionGoogleAboutContainer').setStyles({
-        display: 'block', opacity: 0
-    }).setStyle('opacity', 1);
-};
-closeGooglePositionAbout = function () {
-    if (document.id('positionGoogleAboutContainer')) {
-        document.id('positionGoogleAboutContainer').setStyle('display', 'none');
-    }
-};
-
+var boxAbout;
+var boxImport;
+var boxExport;
+var boxHistory;
+var boxOptions;
 
 
 var init = function () {
+	if (!boxAbout) {
+		boxAbout = new BoxAbout();
+	}
+	if (!boxImport) {
+		boxImport = new BoxImport();
+	}
+	if (!boxExport) {
+		boxExport = new BoxExport();
+	}
+	if (!boxHistory) {
+		boxHistory = new BoxHistory();
+	}
+	if (!boxOptions) {
+		boxOptions = new BoxOptions();
+	}
     
-    /**
-     * Ajoute le menu pour la configuration
-     */
-    if (!document.id('positionGoogleTab')) {
-        var ol = document.id('gbg').getElement('ol.gbtc');
-        var separator = new Element('li', {'class': 'gbt gbtb'})
-            .set('html', '<span class="gbts"></span>');
-        separator.inject(ol, 'top');
-        var tab = new Element('li', {id: 'positionGoogleTab', 'class': 'gbt'}).adopt(
-            new Element('a', {href: '#', 'class': 'gbgt'}).set('html',
-                '<span class="gbtb2"></span><span class="gbts"><span style="font-weight: bold;">GooglePosition</span></span>'
-            )
-        );
-        
-        var menu = new Element('div').addClass('gbm').set('html',
-            '<div class="gbmc"><ol class="gbmcc">\
-                <li id="menu-google-position-options" class="gbkc gbmtc"><a href="#" class="gbmt">Paramètrer l\'extension</a></li>\
-                <li id="menu-google-position-history" class="gbkc gbmtc"><a href="#" class="gbmt">Voir l\'historique</a></li>\
-                <li id="menu-google-position-export" class="gbkc gbmtc"><a href="#" class="gbmt">Exporter les données</a></li>\
-                <li id="menu-google-position-import" class="gbkc gbmtc"><a href="#" class="gbmt">Importer les données</a></li>\
-                <li id="menu-google-position-erase" class="gbkc gbmtc"><a href="#" class="gbmt">Effacer les données</a></li>\
-        		<li id="menu-google-position-about" class="gbkc gbmtc"><a href="#" class="gbmt">À propos</a></li>\
-            </ol></div>'
-        ).inject(tab, 'bottom');
-        
-        tab.inject(ol, 'top').addEvent('click', function (e) {
-            e.stop();
-            this.toggleClass('gbto');
-            menu.setStyle('display', this.hasClass('gbto')?'block':'none');
-        });
-        
-        document.id('menu-google-position-options').addEvent('click', openGooglePositionOptions);
-        document.id('menu-google-position-history').addEvent('click', openGooglePositionHistory);
-        document.id('menu-google-position-import').addEvent('click', openGooglePositionImport);
-        document.id('menu-google-position-export').addEvent('click', openGooglePositionExport);
-        document.id('menu-google-position-erase').addEvent('click', function () {
-            if (!window.confirm('Effacer toutes les données liées à l\extension ?')) {
-                return;
-            }
-            historyPosition = options = datas = {};
-            saveDatas();
-        });
-        document.id('menu-google-position-about').addEvent('click', openGooglePositionAbout);
-    }
-    
+
+	renderMenu();
     
     
     if (!document.id('search')) {
@@ -1021,5 +621,497 @@ var check = function () {
     
     timer = setTimeout(check, 500);
 };
+
+
+
+
+
+
+
+
+
+
+
+
+/* 
+ * Création des classes
+ */
+
+/**
+ * Classe pour afficher des boites
+ */
+var Box = new Class({
+	
+	Implements: [Events, Options],
+	
+	opened: false,
+	rendered: false,
+	element: null,
+	
+	options: {
+		unique: true,
+		center: {
+			vertical: true, horizontal: true
+		},
+		styles: {
+            position: 'absolute', top: '50%', left: '50%',
+            margin: '-100px 0 0 -200px',
+            width: 400,
+            padding: 5,
+            'padding-left': 33,
+            'border-radius': '7px',
+            '-moz-border-radius': '7px',
+            '-webkit-border-radius': '7px',
+            border: '2px solid #AAA',
+            'font-size': 11,
+            background: '#FFF',
+            'box-shadow': '0 0 30px #999',
+            '-moz-box-shadow': '0 0 30px #999',
+            '-webkit-box-shadow': '0 0 30px #999',
+            'z-index': 9999,
+            'display': 'none'
+        }
+	},
+	
+	initialize : function () {
+		
+	},
+	
+	open: function () {
+		if (this.options.unique) {
+			var all = document.getElements('div.gpBoxContainer');
+			all.each(function (container) {
+				var box = container.retrieve('box');
+				if (box) {
+					box.close();
+				}
+			});
+		}
+		
+		this.getElement().setStyles({
+			display: 'block', opacity: 0,
+			
+			// default position
+			top: 0, left: 0
+		});
+		
+		if (this.options.center.horizontal) {
+			this.getElement().setStyles({
+				left: '50%',
+				'margin-left': -1 * this.getElement().getSize().x / 2
+			});
+		}
+		if (this.options.center.vertical) {
+			this.getElement().setStyles({
+				top: '50%',
+				'margin-top': -1 * this.getElement().getSize().y / 2
+			});
+		}
+		
+		this.getElement().setStyle('opacity', 1);
+	},
+	
+	close: function () {
+		this.getElement().setStyles({
+			display: 'none'
+		});
+	},
+	
+	/**
+	 * Set styles of box container
+	 * @return Box
+	 */
+	setStyles: function (newStyles) {
+		this.setOptions({styles: $merge(this.options.styles, newStyles)});
+		console.log(this.options.styles);
+		if (this.rendered) {
+			this.getElement().setStyles(this.options.styles);
+		}
+	},
+	
+	getStyles: function () {
+		return this.options.styles;
+	},
+	
+	
+	getElement : function () {
+		if (!this.element) {
+			this.element = new Element('div', {
+	            styles: this.getStyles(),
+	            'class': 'gpBoxContainer'
+	        });
+			
+			// associe la box à l'élément HTML
+			this.element.store('box', this);
+			
+			this.element.inject(document.body, 'top');
+		}
+		return this.element;
+	},
+	
+	
+	/**
+	 * @return Box
+	 */
+	render: function () {
+		
+		// éléments destinés à la fermeture de la box
+        this.getElement().getElements('.closeBox').addEvent('click', function (e) {
+        	e.stop();
+        	this.close();
+        }.bind(this));
+		
+		this.rendered = true;
+		return this;
+	}
+	
+});
+
+
+/**
+ * Ferme toutes les box lors d'un clic ailleur
+ */
+document.getElement('body').addEvent('click', function (e) {
+    if (e && !$(e.target).hasClass('gpBoxContainer') && !$(e.target).getParent('div.gpBoxContainer')) {
+    	var all = document.getElements('div.gpBoxContainer');
+    	all.each(function (container) {
+    		var box = container.retrieve('box');
+    		if (box) {
+    			box.close();
+    		}
+    	});
+    }
+});
+
+
+/**
+ * Box « About »
+ */
+var BoxAbout = new Class({
+	
+	Extends: Box,
+	
+	render: function () {
+		if (this.rendered) {
+			return this;
+		}
+		
+		this.getElement().set('html',
+			'<h2>À propos de GPosition - v'+version+'</h2>' +
+	        '<p style="font-size: 14px; line-height: 16px;">' +
+	        '	<img src="http://1.gravatar.com/avatar/774d9ade2d54af8618e03d036d2e86bf?s=50&r=G" alt="" style="float: left; display: block; margin: 0 5px 5px 0;" />' +
+	        '	Blount - <a href="mailto:blount@ilatumi.org">blount@ilatumi.org</a><br />' +
+	        '	Site - <a href="http://programmation-web.net" target="_blank">http://programmation-web.net</a><br />' +
+	        '	<a href="http://programmation-web.net/gposition-aide-a-la-seo" target="_blank">Page de l\'extension</a>' +
+	        '	| <a href="http://programmation-web.net/gposition-dernier-changement/" target="_blank">Derniers changements</a><br />' +
+	        '</p>' +
+	        '<form action="" method="post">\
+	            <div>\
+	                <div class="lsbb" style="float: left; clear: both;"><input type="button" value="Fermer" class="lsb closeBox" /></div>\
+	            </div>\
+	        </form>'
+	    );
+		
+		this.parent();
+		return this;
+	}
+	
+});
+
+
+/**
+ * Box « Options »
+ */
+var BoxOptions = new Class({
+	
+	Extends: Box,
+	
+	open: function () {
+	    document.id('positionGoogleOptionsDisplayPosition'+(options.displayPosition?1:0)).checked = true;
+	    document.id('positionGoogleOptionsStorePosition'+(options.backupPosition?1:0)).checked = true;
+	    if (options.highlightSites.join) {
+	        document.id('positionGoogleOptionsHighlightSite').set('value', options.highlightSites.join("\n"));
+	    }
+		
+		return this.parent();
+	},
+	
+	render: function () {
+		if (this.rendered) {
+			return this;
+		}
+		
+		this.getElement().set('html',
+            '<h2>Configuration de l\'extension GooglePosition</h2>' +
+            '<form action="" method="post">\
+                <dl>\
+                    <dt><label>Afficher la position des sites :</label></dt>\
+                    <dd id="positionGoogleOptionsDisplayPosition">\
+                        <input type="radio" value="1" name="positionGoogleOptionsDisplayPosition" id="positionGoogleOptionsDisplayPosition1" checked="checked" />\
+                        <label for="positionGoogleOptionsDisplayPosition1">Oui</label>\
+                        <input type="radio" value="0" name="positionGoogleOptionsDisplayPosition" id="positionGoogleOptionsDisplayPosition0" />\
+                        <label for="positionGoogleOptionsDisplayPosition0">Non</label>\
+                    </dd>\
+                    <dt><label>Garder en mémoire la position des sites recherchés :</label></dt>\
+                    <dd id="positionGoogleOptionsStorePosition">\
+                        <input type="radio" value="1" name="positionGoogleOptionsStorePosition" id="positionGoogleOptionsStorePosition1" checked="checked" />\
+                        <label for="positionGoogleOptionsStorePosition1">Oui</label>\
+                        <input type="radio" value="0" name="positionGoogleOptionsStorePosition" id="positionGoogleOptionsStorePosition0" />\
+                        <label for="positionGoogleOptionsStorePosition0">Non</label>\
+                    </dd>\
+		            <dt>\
+            			<label for="positionGoogleOptionsHighlightSite">Mettre en surbrillance les sites suivants :<br />\
+            			(une URL par ligne, et avec les http (ou https) s\'il vous plait):</label>\
+            		</dt>\
+		            <dd>\
+		            	<textarea id="positionGoogleOptionsHighlightSite" name="positionGoogleOptionsHighlightSite" cols="70" rows="6" style="width: 80%;"></textarea>\
+		            </dd>\
+                    <dt></dt>\
+                    <dd style="margin-top: 10px;">\
+                        <div class="lsbb" style="float: left;"><input type="submit" value="Sauvegarder" class="lsb" /></div>\
+                        <div class="lsbb" style="float: left; margin-left: 10px;"><input type="button" value="Fermer" class="lsb closeBox" /></div>\
+                    </dd>\
+                </dl>\
+            </form>'
+	    );
+        
+		this.getElement().getElement('form').addEvent('submit', function (event) {
+            event.stop();
+            
+            options.displayPosition = document.id('positionGoogleOptionsDisplayPosition0').checked?false:true;
+            options.backupPosition = document.id('positionGoogleOptionsStorePosition0').checked?false:true;
+            
+            if (!options.displayPosition) {
+                var positions = document.getElements('span.spanPositionGoogle');
+                if (positions.length > 0) {
+                    positions.destroy();
+                }
+            }
+            var sites = [];
+            document.id('positionGoogleOptionsHighlightSite').get('value').split("\n").each(function (site) {
+            	site = site.trim();
+            	if (site.match(/^https?:\/\//)) {
+                    sites.push(site);
+            	}
+            });
+            options.highlightSites = sites;
+            highlightSites(options.highlightSites);
+
+            saveDatas();
+            this.close();
+        }.bind(this));
+		
+		this.parent();
+		return this;
+	}
+	
+});
+
+
+/**
+ * Box « Export »
+ */
+var BoxExport = new Class({
+	
+	Extends: Box,
+	
+	open: function () {
+	    document.id('positionGoogleExport').set('value', exportDatas());
+	    
+	    return this.parent();
+	},
+	
+	render: function () {
+		if (this.rendered) {
+			return this;
+		}
+		
+		this.getElement().set('html',
+            '<h2>Exportation des données de cet ordinateur</h2>' +
+            '<p>Vous pouvez enregistrer cette chaîne de caractères dans un fichier afin de sauvegarder vos informations.</p>' +
+            '<form action="" method="post">\
+                <p><label>Exportation :</label></p>\
+                <p><textarea id="positionGoogleExport" cols="50" rows="3" style="width: 100%;"></textarea></p>\
+                <p><div class="lsbb" style="display: inline-block"><input type="button" value="Fermer" class="lsb closeBox" /></div></p>\
+            </form>'
+        );
+		
+		this.parent();
+		return this;
+	}
+	
+});
+
+
+/**
+ * Box « Import »
+ */
+var BoxImport = new Class({
+	
+	Extends: Box,
+	
+	render: function () {
+		if (this.rendered) {
+			return this;
+		}
+		
+		this.getElement().set('html',
+            '<h2>Importations des données sur cet ordinateur</h2>' +
+            '<p>Vous pouvez importer ici une chaîne de caractères précédemment exportée.</p>' +
+            '<form action="" method="post">\
+                <p><label>Importation :</label></p>\
+                <p><textarea id="positionGoogleImport" cols="50" rows="3" style="width: 100%;"></textarea></p>\
+                <div>\
+                    <div class="lsbb" style="float: left;"><input type="submit" value="Importer" class="lsb" /></div>\
+                    <div class="lsbb" style="float: left; margin-left: 10px;"><input type="button" value="Fermer" class="lsb closeBox" /></div>\
+                </div>\
+            </form>'
+        );
+		
+		// apture l'envoi du formulaire
+		this.getElement().getElement('form').addEvent('submit', function (e) {
+            e.stop();
+            var value = document.id('positionGoogleImport').get('value');
+            if (value && window.confirm('Terminer l\'importation des données ? (écrase les données existantes)')) {
+                importDatas(value);
+                this.close();
+                alert('Données importées.');
+            }
+        }.bind(this));
+		
+		this.parent();
+		return this;
+	}
+	
+});
+
+
+/**
+ * Box « History »
+ */
+var BoxHistory = new Class({
+	
+	Extends: Box,
+	
+	initialize: function () {
+		this.setStyles({
+			width: 600, height: 400,
+			overflow: 'auto'
+		});
+		
+		this.parent();
+	},
+	
+	render: function () {
+		this.getElement().set('html',
+            '<h2>Historique enregistré</h2>' +
+            '<div class="content"></div>' +
+            '<div class="lsbb" style="float: left;"><input type="button" value="Fermer" class="lsb closeBox" /></div>'
+        );
+	    
+	    var content = this.getElement().getElement('div.content').empty();
+	    var date = new Date();
+	    
+	    $each(historyPosition, function (sites, keyword) {
+	        var title = new Element('h3', {text: keyword})
+				.adopt(new Element('img', {
+						src: 'http://ilatumi.org/positiongoogle/search.png',
+						alt: 'rechercher',
+						title: 'Lancer la recherche sur « '+keyword+' »',
+						styles: {margin: '0 0 0 5px', 'vertical-align': 'middle', cursor: 'pointer'}
+					}).addEvent('click', function (e) {
+						searchSiteFromKeyword(keyword);
+					}));
+	        var table = new Element('table').setStyles({
+	            border: '1px solid #DDD', 'margin': '10px 0',
+	            'border-collapse': 'collapse',
+	            width: '100%', 'text-align': 'center'
+	        }).adopt(
+	            new Element('thead').adopt(
+	                new Element('th', {text: 'Lien'}),
+	                new Element('th', {text: 'Dernière position', styles: {width: 100}}),
+	                new Element('th', {text: 'Quand ?', styles: {width: 100}}),
+	                new Element('th', {styles: {width: 25}}),
+	                new Element('th', {styles: {width: 25}})
+	            ),
+	            new Element('tbody')
+	        );
+	        var body = table.getElement('tbody');
+	        
+	        var dateStr;
+	        for (var i = 0; i < sites.length; i++) {
+	            date.setTime(sites[i][1].getLast().time);
+	            dateStr = "";
+	            if (date.getDate() < 10) {
+	                dateStr += "0" + date.getDate();
+	            } else {
+	                dateStr += date.getDate();
+	            }
+	            dateStr += " / ";
+	            if (date.getMonth() < 9) {
+	                dateStr += "0" + (date.getMonth() + 1);
+	            } else {
+	                dateStr += date.getMonth();
+	            }
+	            dateStr += " / "+date.getFullYear();
+	            
+	            body.adopt(new Element('tr').adopt(
+	                new Element('td', {text: sites[i][0]}),
+	                new Element('td', {text: sites[i][1].getLast().position}),
+	                new Element('td', {text: dateStr}),
+	                new Element('td', {html: '<a href="#"><img src="http://ilatumi.org/positiongoogle/delete.png" '+
+							'alt="supprimer" title="Supprimer cette entrée ?" /></a>', 'class': 'delete'})
+	                    .addEvent('click', function (e) {
+	                        e.stop();
+	                        deleteSiteFromKeyword(keyword, this.getParent('tr').getElement('td').get('text'));
+	                    }),
+	                new Element('td', {html: '<a href="#"><img src="http://ilatumi.org/positiongoogle/search.png" '+
+							'alt="rechercher" title="Rechercher à nouveau ce site avec le mot clé « '+keyword+' »" /></a>', 'class': 'search'})
+	                    .addEvent('click', function (e) {
+	                        e.stop();
+	                        searchSiteFromKeyword(keyword, this.getParent('tr').getElement('td').get('text'));
+	                    })
+	            ));
+	        }
+	        
+	        table.getElements('td').setStyle('border-top', '1px solid #DDD');
+	        
+	        content.adopt(title, table);
+	    });
+	    
+	    if (content.get('html') == '') {
+	        content.adopt(new Element('p', {
+	            text: 'L\'historique est vide.'
+	        }));
+	    }
+		
+		this.parent();
+		return this;
+	}
+	
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 check();
 
