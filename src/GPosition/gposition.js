@@ -273,17 +273,17 @@ var displayPositionChange = function (a) {
                 var color = '#FFB900';
                 var bColor = '#DDD';
                 var bgColor = '#F0F0F0';
-        var text;
+                var text;
                 if (evolution < 0) {
                     color = '#DD2700';
-            text = evolution;
+                    text = evolution;
                 } else if (evolution > 0) {
                     color = '#00C025';
-            text = '+' + evolution;
+                    text = '+' + evolution;
                 } else {
                     color = '#FFB900';
-            text = '=';
-        }
+                    text = '=';
+                }
                 var span = new Element('div', {
                     text: text,
                     styles: {
@@ -386,7 +386,7 @@ var searchAddress = function () {
         alert("Trouvé !! Position : "+storage.appDatas.position);
         storage.appDatas.onprogress = false;
         storage.save();
-    } else if (datas.currentPage < storage.appDatas.maxPages) { // page suivante
+    } else if (storage.appDatas.currentPage < storage.appDatas.maxPages) { // page suivante
         var pn = document.id('pnnext');
         if (pn) {
         	storage.appDatas.currentPage += 1;
