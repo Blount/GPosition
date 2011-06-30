@@ -17,84 +17,104 @@ if (typeof unsafeWindow == "undefined") {
 var version = "1.2.4";
 
 /**
- * Protège les caractères spéciaux des RegExp d'une chaîne.
+ * Quote regular expression characters.
+ * @see http://phpjs.org/functions/preg_quote:491
  * @return string
  */
 var preg_quote = function (str, delimiter) {
     return (str + '').replace(new RegExp('[.\\\\+*?\\[\\^\\]$(){}=!<>|:\\' + (delimiter || '') + '-]', 'g'), '\\$&');
 };
 
-var options = {
-    displayPosition: true,
-    backupPosition: true,
-    highlightSites: []
-};
 
-var datas = {
-    onprogress: false,
-    found: false,
-    address: null,
-    position: 0,
-    currentPage: 1,
-    maxPages: 10,
-    version: 2
-};
+/**
+ * Datas manager
+ * 
+ */
+var Storage = new Class({
+	
+	appOptions : {
+	    displayPosition: true,
+	    backupPosition: true,
+	    highlightSites: []
+	},
+	
+	appDatas : {
+	    onprogress: false,
+	    found: false,
+	    address: null,
+	    position: 0,
+	    currentPage: 1,
+	    maxPages: 10,
+	    version: 2
+	},
+	appHistory : {},
+	
+	/**
+	 * @todo profile manager using ID.
+	 * @param id
+	 */
+	initialize: function (id) {
+		this.load();
+	},
+	
+	load : function () {
+	    try {
+	        var d = JSON.parse(localStorage.getItem('googlePosition'));
+	        var h = JSON.parse(localStorage.getItem('googlePositionHistory'));
+	        var o = JSON.parse(localStorage.getItem('googlePositionOptions'));
+	    } catch(e) {
+	        return;
+	    }
+	    if (d) {
+	        if (!d.version || d.version != this.appDatas.version) {
+	            d = this.appDatas;
+	        }
+	        this.appDatas = $merge(this.appDatas, d);
+	    }
+	    if (h) {
+	        this.appHistory = $merge(this.appHistory, h);
+	    }
+	    if (o) {
+	        this.appOptions = $merge(this.appOptions, o);
+	    }
+	},
+	
+	save: function () {
+	    localStorage.setItem('googlePosition', JSON.stringify(this.appDatas));
+	    localStorage.setItem('googlePositionHistory', JSON.stringify(this.appHistory));
+	    localStorage.setItem('googlePositionOptions', JSON.stringify(this.appOptions));
+	},
+	
+	import: function (string) {
+		if ($type(string) != 'string') {
+			return;
+		}
+	    var e = JSON.parse(string);
+	    if (e) {
+	        if (e.history) {
+	        	this.appHistory = e.history;
+	        }
+	        if (e.options) {
+	        	this.appOptions = e.options;
+	        }
+	    }
+	    this.save();
+	},
+	
+	toJsonString: function () {
+	    this.save();
+	    
+	    return JSON.stringify({
+	        history: this.appHistory, options: this.appOptions
+	    });
+	}
+	
+});
+var storage = new Storage('default');
 
-var historyPosition = {
-    
-};
 
-var loadDatas = function() {
-    try {
-        var d = JSON.parse(localStorage.getItem('googlePosition'));
-        var h = JSON.parse(localStorage.getItem('googlePositionHistory'));
-        var o = JSON.parse(localStorage.getItem('googlePositionOptions'));
-    } catch(e) {
-        return;
-    }
-    if (d) {
-        if (!d.version || d.version != datas.version) {
-            d = datas;
-        }
-        datas = $merge(datas, d);
-    }
-    if (h) {
-        historyPosition = $merge(historyPosition, h);
-    }
-    if (o) {
-        options = $merge(options, o);
-    }
-};
-loadDatas();
 
-var saveDatas = function () {
-    localStorage.setItem('googlePosition', JSON.stringify(datas));
-    localStorage.setItem('googlePositionHistory', JSON.stringify(historyPosition));
-    localStorage.setItem('googlePositionOptions', JSON.stringify(options));
-};
 
-var exportDatas = function () {
-    saveDatas();
-    
-    return JSON.stringify({
-        position: datas, history: historyPosition, options: options
-    });
-};
-var importDatas = function (string) {
-    var e = JSON.parse(string);
-    if (e) {
-        if (e.position) {
-            position = e.position;
-        }
-        if (e.history) {
-            historyPosition = e.history;
-        }
-        if (e.options) {
-            options = e.options;
-        }
-    }
-    saveDatas();
-};
 
 
 var insertPosition = function (el) {
@@ -112,7 +132,7 @@ var insertPosition = function (el) {
 
 var displayPosition = function () {
     var search = document.id('search');
-    if (!search || !options.displayPosition) {
+    if (!search || !storage.appOptions.displayPosition) {
         return;
     }
     
@@ -211,26 +231,26 @@ var getPosition = function(el) {
  * @todo : il faudrait rendre effectif par rapport à la recherche en cours
  */
 var backupPosition = function(url, position) {
-    if (!options.backupPosition) {
+    if (!storage.appOptions.backupPosition) {
         return;
     }
     
     var search = getSearchKeywords();
-    if (!historyPosition[search]) {
-        historyPosition[search] = [];
+    if (!storage.appHistory[search]) {
+    	storage.appHistory[search] = [];
     }
     
-    for (var i = 0; i < historyPosition[search].length; i++) {
-        if (historyPosition[search][i][0] == url) {
-            historyPosition[search][i][1].push({'time': new Date().getTime(), 'position': position});
-            saveDatas();
+    for (var i = 0; i < storage.appHistory[search].length; i++) {
+        if (storage.appHistory[search][i][0] == url) {
+        	storage.appHistory[search][i][1].push({'time': new Date().getTime(), 'position': position});
+            storage.save();
             return;
         }
     }
     
     var newEntry = [url, [{'time': new Date().getTime(), 'position': position}]];
-    historyPosition[search].push(newEntry);
-    saveDatas();
+    storage.appHistory[search].push(newEntry);
+    storage.save();
 };
 
 
@@ -238,16 +258,16 @@ var backupPosition = function(url, position) {
  * Affiche l'évolution de position d'un site
  */
 var displayPositionChange = function (a) {
-    if (!options.backupPosition) {
+    if (!storage.appOptions.backupPosition) {
         return;
     }
     var search = getSearchKeywords();
-    if (!historyPosition[search]) {
+    if (!storage.appHistory[search]) {
         return;
     }
-    for (var i = 0; i < historyPosition[search].length; i++) {
-        if (historyPosition[search][i][0] == a.get('href')) {
-            var positions = historyPosition[search][i][1];
+    for (var i = 0; i < storage.appHistory[search].length; i++) {
+        if (storage.appHistory[search][i][0] == a.get('href')) {
+            var positions = storage.appHistory[search][i][1];
             if (positions.length > 1) {
                 var evolution = positions[positions.length-2].position.toInt() - positions[positions.length-1].position.toInt();
                 var color = '#FFB900';
@@ -310,7 +330,7 @@ var searchAddress = function () {
     }
     
     var link, position;
-    var reg = new RegExp("^"+preg_quote(datas.address)+".*");
+    var reg = new RegExp("^"+preg_quote(storage.appDatas.address)+".*");
     for (var i = 0; i < lis.length; i++) {
         // box lié à Google Map
         if (lis[i].id == 'lclbox') {
@@ -320,9 +340,9 @@ var searchAddress = function () {
 
                 if (link) {
                     position = getPosition(link);
-                    if (datas.position < position && link.href.match(reg)) {
-                        datas.found = true;
-                        datas.position = position;
+                    if (storage.appDatas.position < position && link.href.match(reg)) {
+                    	storage.appDatas.found = true;
+                    	storage.appDatas.position = position;
                         h4s[j].getParent().getParent().getParent().setStyles({
                             border: '1px solid #FF0000',
                             'border-radius': '5px',
@@ -342,9 +362,9 @@ var searchAddress = function () {
         link = lis[i].getElement('a');
         if (link) {
             position = getPosition(link);
-            if (datas.position < position && link.href.match(reg)) {
-                datas.found = true;
-                datas.position = position;
+            if (storage.appDatas.position < position && link.href.match(reg)) {
+            	storage.appDatas.found = true;
+            	storage.appDatas.position = position;
                 lis[i].setStyles({
                     border: '1px solid #FF0000',
                     'border-radius': '5px',
@@ -358,32 +378,32 @@ var searchAddress = function () {
             }
         }
     }
-    saveDatas();
+    storage.save();
     
     document.id('position-google-next-button').setStyle('display', 'inline');
     
-    if (datas.found) {
-        alert("Trouvé !! Position : "+datas.position);
-        datas.onprogress = false;
-        saveDatas();
-    } else if (datas.currentPage < datas.maxPages) { // page suivante
+    if (storage.appDatas.found) {
+        alert("Trouvé !! Position : "+storage.appDatas.position);
+        storage.appDatas.onprogress = false;
+        storage.save();
+    } else if (datas.currentPage < storage.appDatas.maxPages) { // page suivante
         var pn = document.id('pnnext');
         if (pn) {
-            datas.currentPage += 1;
-            datas.onprogress = true;
-            saveDatas();
+        	storage.appDatas.currentPage += 1;
+        	storage.appDatas.onprogress = true;
+            storage.save();
             document.location.href = pn.href;
         } else {
             alert("Désolé, votre adresse est introuvable.");
         }
     } else if (window.confirm("Désolé, votre adresse est introuvable. Chercher plus loin ?")) {
-        datas.maxPages += 10;
-        saveDatas();
+    	storage.appDatas.maxPages += 10;
+        storage.save();
         var pn = document.id('pnnext');
         if (pn) {
-            datas.currentPage += 1;
-            datas.onprogress = true;
-            saveDatas();
+        	storage.appDatas.currentPage += 1;
+        	storage.appDatas.onprogress = true;
+            storage.save();
             document.location.href = pn.href;
         } else {
             alert("Désolé, votre adresse est introuvable.");
@@ -395,7 +415,7 @@ var searchAddress = function () {
 
 var deleteSiteFromKeyword = function (keyword, site) {
     var newHistory = {};
-    $each(historyPosition, function (sites, _keyword) {
+    $each(storage.appHistory, function (sites, _keyword) {
         if (keyword != _keyword) {
             newHistory[_keyword] = sites;
             return;
@@ -410,20 +430,20 @@ var deleteSiteFromKeyword = function (keyword, site) {
             newHistory[_keyword] = h;
         }
     });
-    historyPosition = newHistory;
+    storage.appHistory = newHistory;
     updateGooglePositionHistory();
-    saveDatas();
+    storage.save();
 };
 var searchSiteFromKeyword = function(keyword, site) {
 	
 	if (site) {
-		datas.address = site;
-		datas.currentPage = 1;
-		datas.maxPages = 10;
-		datas.position = 0;
-		datas.onprogress = true;
-		datas.found = false;
-		saveDatas();
+		storage.appDatas.address = site;
+		storage.appDatas.currentPage = 1;
+		storage.appDatas.maxPages = 10;
+		storage.appDatas.position = 0;
+		storage.appDatas.onprogress = true;
+		storage.appDatas.found = false;
+		storage.save();
 	}
 
 	var el = document.getElement('input[name=q]');
@@ -482,8 +502,8 @@ var renderMenu = function (parent) {
         if (!window.confirm('Effacer toutes les données liées à l\extension ?')) {
             return;
         }
-        historyPosition = options = datas = {};
-        saveDatas();
+        storage.appHistory = storage.appOptions = storage.appDatas = {};
+        storage.save();
     });
     document.id('menu-google-position-about').addEvent('click', function () {
     	boxAbout.render().open();
@@ -527,8 +547,8 @@ var init = function () {
     
     
     // Highlight les sites
-    if (options.highlightSites) {
-    	highlightSites(options.highlightSites);
+    if (storage.appOptions.highlightSites) {
+    	highlightSites(storage.appOptions.highlightSites);
     }
     
     var form = new Element('form', {
@@ -547,7 +567,7 @@ var init = function () {
         }),
         new Element('input', {
             type: 'text', id: 'positionGoogleUrl', name: 'positionGoogleUrl',
-            value: datas.address?datas.address:'', size: 50,
+            value: storage.appDatas.address?storage.appDatas.address:'', size: 50,
             title: 'Adresse du site ou de la page recherché.'
         }),
         new Element('input', {
@@ -576,16 +596,16 @@ var init = function () {
         	document.id('positionGoogleUrl').set('value', address);
         }
         
-        datas.address = address;
-        datas.currentPage = 1;
-        datas.maxPages = 10;
-        datas.position = 0;
-        datas.onprogress = false;
-        datas.found = false;
-        saveDatas();
+        storage.appDatas.address = address;
+        storage.appDatas.currentPage = 1;
+        storage.appDatas.maxPages = 10;
+        storage.appDatas.position = 0;
+        storage.appDatas.onprogress = false;
+        storage.appDatas.found = false;
+        storage.save();
         if (getCurrentPage() != 1) {
-            datas.onprogress = true;
-            saveDatas();
+        	storage.appDatas.onprogress = true;
+            storage.save();
             document.location.href = document.location.href.replace(/start=[0-9]+/, 'start=0');
         } else {
             searchAddress();
@@ -593,15 +613,15 @@ var init = function () {
     });
 
     document.id('position-google-next-button').addEvent('click', function (event) {
-        datas.maxPages = getCurrentPage() + 10;
-        datas.found = false;
-        saveDatas();
+    	storage.appDatas.maxPages = getCurrentPage() + 10;
+    	storage.appDatas.found = false;
+        storage.save();
         searchAddress();
     });
     
-    if (datas.onprogress) {
-        datas.onprogress = false;
-        saveDatas();
+    if (storage.appDatas.onprogress) {
+    	storage.appDatas.onprogress = false;
+        storage.save();
         searchAddress();
     }
     
@@ -613,7 +633,7 @@ var timer;
 var check = function () {
     var menu = document.id('gb_1');
     if (menu && menu.hasClass('gbz0l')) {
-		if (options.displayPosition) {
+		if (storage.appOptions.displayPosition) {
 			displayPosition();
 		}
 		init();
@@ -827,10 +847,10 @@ var BoxOptions = new Class({
 	Extends: Box,
 	
 	open: function () {
-	    document.id('positionGoogleOptionsDisplayPosition'+(options.displayPosition?1:0)).checked = true;
-	    document.id('positionGoogleOptionsStorePosition'+(options.backupPosition?1:0)).checked = true;
-	    if (options.highlightSites.join) {
-	        document.id('positionGoogleOptionsHighlightSite').set('value', options.highlightSites.join("\n"));
+	    document.id('positionGoogleOptionsDisplayPosition'+(storage.appOptions.displayPosition?1:0)).checked = true;
+	    document.id('positionGoogleOptionsStorePosition'+(storage.appOptions.backupPosition?1:0)).checked = true;
+	    if (storage.appOptions.highlightSites.join) {
+	        document.id('positionGoogleOptionsHighlightSite').set('value', storage.appOptions.highlightSites.join("\n"));
 	    }
 		
 		return this.parent();
@@ -878,10 +898,10 @@ var BoxOptions = new Class({
 		this.getElement().getElement('form').addEvent('submit', function (event) {
             event.stop();
             
-            options.displayPosition = document.id('positionGoogleOptionsDisplayPosition0').checked?false:true;
-            options.backupPosition = document.id('positionGoogleOptionsStorePosition0').checked?false:true;
+            storage.appOptions.displayPosition = document.id('positionGoogleOptionsDisplayPosition0').checked?false:true;
+            storage.appOptions.backupPosition = document.id('positionGoogleOptionsStorePosition0').checked?false:true;
             
-            if (!options.displayPosition) {
+            if (!storage.appOptions.displayPosition) {
                 var positions = document.getElements('span.spanPositionGoogle');
                 if (positions.length > 0) {
                     positions.destroy();
@@ -894,10 +914,10 @@ var BoxOptions = new Class({
                     sites.push(site);
             	}
             });
-            options.highlightSites = sites;
-            highlightSites(options.highlightSites);
+            storage.appOptions.highlightSites = sites;
+            highlightSites(storage.appOptions.highlightSites);
 
-            saveDatas();
+            storage.save();
             this.close();
         }.bind(this));
 		
@@ -916,7 +936,7 @@ var BoxExport = new Class({
 	Extends: Box,
 	
 	open: function () {
-	    document.id('positionGoogleExport').set('value', exportDatas());
+	    document.id('positionGoogleExport').set('value', storage.toJsonString());
 	    
 	    return this.parent();
 	},
@@ -973,7 +993,7 @@ var BoxImport = new Class({
             e.stop();
             var value = document.id('positionGoogleImport').get('value');
             if (value && window.confirm('Terminer l\'importation des données ? (écrase les données existantes)')) {
-                importDatas(value);
+                storage.import(value);
                 this.close();
                 alert('Données importées.');
             }
@@ -1012,7 +1032,7 @@ var BoxHistory = new Class({
 	    var content = this.getElement().getElement('div.content').empty();
 	    var date = new Date();
 	    
-	    $each(historyPosition, function (sites, keyword) {
+	    $each(storage.appHistory, function (sites, keyword) {
 	        var title = new Element('h3', {text: keyword})
 				.adopt(new Element('img', {
 						src: 'http://ilatumi.org/positiongoogle/search.png',
