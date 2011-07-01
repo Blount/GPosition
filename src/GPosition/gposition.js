@@ -14,7 +14,31 @@ if (typeof unsafeWindow == "undefined") {
     console.log = unsafeWindow.console.log;
 }
 
+if ($type(localStorage) != "object") {
+	alert('localStorage not supported.');
+	return;
+}
+
 var version = "1.2.4";
+
+// migrate from 1.2.4 to 1.2.5
+/*
+(function () {
+	if (localStorage.getItem('googlePosition')) {
+		//localStorage.setItem('', localStorage.getItem('googlePosition'));
+	}
+
+	if (localStorage.getItem('googlePositionHistory')) {
+		//localStorage.setItem('', localStorage.getItem('googlePositionHistory'));
+	}
+	
+	if (localStorage.getItem('googlePositionOptions')) {
+		//localStorage.setItem('', localStorage.getItem('googlePositionOptions'));
+	}
+	
+	
+})();
+*/
 
 /**
  * Quote regular expression characters.
@@ -24,6 +48,7 @@ var version = "1.2.4";
 var preg_quote = function (str, delimiter) {
     return (str + '').replace(new RegExp('[.\\\\+*?\\[\\^\\]$(){}=!<>|:\\' + (delimiter || '') + '-]', 'g'), '\\$&');
 };
+
 
 
 /**
@@ -44,8 +69,7 @@ var Storage = new Class({
 	    address: null,
 	    position: 0,
 	    currentPage: 1,
-	    maxPages: 10,
-	    version: 2
+	    maxPages: 10
 	}),
 	history : new Hash({}),
 	
@@ -58,17 +82,10 @@ var Storage = new Class({
 	},
 	
 	load : function () {
-	    try {
-	        var d = JSON.parse(localStorage.getItem('googlePosition'));
-	        var h = JSON.parse(localStorage.getItem('googlePositionHistory'));
-	        var o = JSON.parse(localStorage.getItem('googlePositionOptions'));
-	    } catch(e) {
-	        return;
-	    }
+        var d = JSON.parse(localStorage.getItem('googlePosition'));
+        var h = JSON.parse(localStorage.getItem('googlePositionHistory'));
+        var o = JSON.parse(localStorage.getItem('googlePositionOptions'));
 	    if (d) {
-	        if (!d.version || d.version != this.datas.version) {
-	            d = this.datas;
-	        }
 	        this.datas.extend(d);
 	    }
 	    if (h) {
@@ -169,45 +186,134 @@ var storage = new Storage('default');
 
 
 
+var Serp = new Class({
+	
+	container: null,
+	
+	getContainer: function () {
+		return null;
+	},
+	
+	displayPosition: function () {
+		return this;
+	},
+	
+	getPosition: function () {
+		return 0;
+	},
+	
+	getCurrentPage: function () {
+		return 0;
+	},
+	
+	getSearchKeywords: function () {
+		return '';
+	}
+	
+});
+
+var GoogleSerp = new Class({
+	
+	Extends: Serp,
+	
+	getContainer: function () {
+		this.container = document.id('search');
+		return this.container;
+	},
+	
+	/**
+	 * Display position before title
+	 * @return GoogleSerp
+	 */
+	displayPosition: function () {
+		if (!this.getContainer()) {
+			return this;
+		}
+	    var lis = this.container.getElements('li');
+	    if (lis.length > 0) {
+		    lis.each(function (li) {
+		        // box lié à Google Map
+		        if (li.id == 'lclbox') {
+		            var h4s = li.getElements('h4');
+		            h4s.each(function (h4) {
+		            	this._displayPosition(h4.getElement('a'));
+		            });
+		        } else {
+		        	this._displayPosition(li.getElement('a'));
+		        }
+		    }.bind(this));
+	    }
+	    
+	    return this;
+	},
+	
+	_displayPosition: function (el) {
+	    var position = this.getPosition(el);
+	    if (position == 0 || document.id('search-'+position)) {
+	        return;
+	    }
+	    el.set('id', 'link-' + position);
+	    var node = new Element('span', {
+	        id: 'search-'+position, styles: {color: '#F06F31'},
+	        'class': 'serpPosition'
+	    }).set('text', '#'+position+' - ');
+	    node.inject(el, 'top');
+	},
+	
+	/**
+	 * Get URL position
+	 * @return int
+	 */
+	getPosition: function (link)
+	{
+		if ($type(link) == 'string') {
+			link = this.container.getElement('link='+link);
+		}
+		
+		if ($type(link) == 'element' && link.get('tag') == 'a' && link.get('onmousedown')) {
+		    var matches = link.get('onmousedown').match(/(clk|rwt)\(.*,.*,.*,.*,'([0-9]+)',.*\)/);
+		    if (matches) {
+		        return matches[2];
+		    }
+		}
+		
+	    return 0;
+	},
+	
+	/**
+	 * Get current page
+	 * @return int
+	 */
+	getCurrentPage: function () {
+	    var nav = document.id('nav');
+	    if (nav) {
+	        var td = nav.getElement('td.cur');
+	        if (td) {
+	            return td.get('text').trim().toInt();
+	        }
+	    }
+	    return 0;
+	},
 
 
+	/**
+	 * Récupère la recherche en cours
+	 * @return string
+	 */
+	getSearchKeywords: function () {
+	    var el = document.id('tsf-oq');
+	    if (el) {
+	        el = el.getPrevious('input[name=q]');
+	        if (el) {
+	            return el.get('value');
+	        }
+	    }
+	    return '';
+	}
+	
+});
+var serp = new GoogleSerp();
 
-var insertPosition = function (el) {
-    var position = getPosition(el);
-    if (position == 0 || document.id('search-'+position)) {
-        return;
-    }
-    el.set('id', 'link-' + position);
-    var node = new Element('span', {
-        id: 'search-'+position, styles: {color: '#F06F31'},
-        'class': 'spanPositionGoogle'
-    }).set('text', '#'+position+' - ');
-    node.inject(el, 'top');
-};
-
-var displayPosition = function () {
-    var search = document.id('search');
-    if (!search || !storage.getOption('displayPosition')) {
-        return;
-    }
-    
-    var lis = search.getElements('li');
-    if (lis.length == 0) {
-        return;
-    }
-    
-    lis.each(function (li) {
-        // box lié à Google Map
-        if (li.id == 'lclbox') {
-            var h4s = li.getElements('h4');
-            h4s.each(function (h4) {
-                insertPosition(h4.getElement('a'));
-            });
-        } else {
-            insertPosition(li.getElement('a'));
-        }
-    });
-};
 
 
 /**
@@ -255,32 +361,6 @@ var highlightSite = function (el, sites) {
 };
 
 
-var getCurrentPage = function () {
-    var nav = document.id('nav');
-    if (nav) {
-        var td = nav.getElement('td.cur');
-        if (td) {
-            return td.get('text').trim().toInt();
-        }
-    }
-    return 0;
-};
-
-/**
- * Retourne le numéro de la position d'un site par rapport à la balise « a »
- * @return int
- */
-var getPosition = function(el) {
-    if (!el || !el.get('onmousedown')) {
-        return 0;
-    }
-    var matches = el.get('onmousedown').match(/(clk|rwt)\(.*,.*,.*,.*,'([0-9]+)',.*\)/);
-    if (matches) {
-        return matches[2];
-    }
-    return 0;
-};
-
 /**
  * Sauvegarde la position d'une URL
  * @todo : il faudrait rendre effectif par rapport à la recherche en cours
@@ -290,7 +370,7 @@ var backupPosition = function(url, position) {
         return;
     }
     
-    var search = getSearchKeywords();
+    var search = serp.getSearchKeywords();
     if (!storage.history.has(search)) {
     	storage.history.set(search, []);
     }
@@ -320,7 +400,7 @@ var displayPositionChange = function (a) {
     if (!storage.getOption('backupPosition')) {
         return;
     }
-    var search = getSearchKeywords();
+    var search = serp.getSearchKeywords();
     if (!storage.history.has(search)) {
         return;
     }
@@ -363,21 +443,6 @@ var displayPositionChange = function (a) {
 };
 
 
-/**
- * Récupère la recherche en cours
- */
-var getSearchKeywords = function () {
-    var el = document.id('tsf-oq');
-    if (el) {
-        el = el.getPrevious('input[name=q]');
-        if (el) {
-            return el.get('value');
-        }
-    }
-    return '';
-};
-
-
 
 var searchAddress = function () {
     var search = document.id('search');
@@ -400,7 +465,7 @@ var searchAddress = function () {
                 link = h4s[j].getElement('a');
 
                 if (link) {
-                    position = getPosition(link);
+                    position = serp.getPosition(link);
                     if (storage.datas.position < position && link.href.match(reg)) {
                     	storage.datas.found = true;
                     	storage.datas.position = position;
@@ -422,7 +487,7 @@ var searchAddress = function () {
         
         link = lis[i].getElement('a');
         if (link) {
-            position = getPosition(link);
+            position = serp.getPosition(link);
             if (storage.datas.position < position && link.href.match(reg)) {
             	storage.datas.found = true;
             	storage.datas.position = position;
@@ -642,7 +707,7 @@ var init = function () {
         storage.datas.onprogress = false;
         storage.datas.found = false;
         storage.save();
-        if (getCurrentPage() != 1) {
+        if (serp.getCurrentPage() != 1) {
         	storage.datas.onprogress = true;
             storage.save();
             document.location.href = document.location.href.replace(/start=[0-9]+/, 'start=0');
@@ -652,7 +717,7 @@ var init = function () {
     });
 
     document.id('position-google-next-button').addEvent('click', function (event) {
-    	storage.datas.maxPages = getCurrentPage() + 10;
+    	storage.datas.maxPages = serp.getCurrentPage() + 10;
     	storage.datas.found = false;
         storage.save();
         searchAddress();
@@ -673,7 +738,7 @@ var check = function () {
     var menu = document.id('gb_1');
     if (menu && menu.hasClass('gbz0l')) {
 		if (storage.getOption('displayPosition')) {
-			displayPosition();
+			serp.displayPosition();
 		}
 		init();
     }
@@ -946,7 +1011,7 @@ var BoxOptions = new Class({
             storage.setOption('backupPosition', document.id('positionGoogleOptionsStorePosition0').checked?false:true);
             
             if (!storage.getOption('displayPosition')) {
-                var positions = document.getElements('span.spanPositionGoogle');
+                var positions = document.getElements('span.serpPosition');
                 if (positions.length > 0) {
                     positions.destroy();
                 }
