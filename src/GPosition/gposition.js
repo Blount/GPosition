@@ -32,13 +32,13 @@ var preg_quote = function (str, delimiter) {
  */
 var Storage = new Class({
 	
-	appOptions : {
+	options : new Hash({
 	    displayPosition: true,
 	    backupPosition: true,
 	    highlightSites: []
-	},
+	}),
 	
-	appDatas : {
+	datas : new Hash({
 	    onprogress: false,
 	    found: false,
 	    address: null,
@@ -46,8 +46,8 @@ var Storage = new Class({
 	    currentPage: 1,
 	    maxPages: 10,
 	    version: 2
-	},
-	appHistory : {},
+	}),
+	history : new Hash({}),
 	
 	/**
 	 * @todo profile manager using ID.
@@ -66,23 +66,23 @@ var Storage = new Class({
 	        return;
 	    }
 	    if (d) {
-	        if (!d.version || d.version != this.appDatas.version) {
-	            d = this.appDatas;
+	        if (!d.version || d.version != this.datas.version) {
+	            d = this.datas;
 	        }
-	        this.appDatas = $merge(this.appDatas, d);
+	        this.datas.extend(d);
 	    }
 	    if (h) {
-	        this.appHistory = $merge(this.appHistory, h);
+	        this.history.extend(h);
 	    }
 	    if (o) {
-	        this.appOptions = $merge(this.appOptions, o);
+	        this.options.extend(o);
 	    }
 	},
 	
 	save: function () {
-	    localStorage.setItem('googlePosition', JSON.stringify(this.appDatas));
-	    localStorage.setItem('googlePositionHistory', JSON.stringify(this.appHistory));
-	    localStorage.setItem('googlePositionOptions', JSON.stringify(this.appOptions));
+	    localStorage.setItem('googlePosition', JSON.stringify(this.datas));
+	    localStorage.setItem('googlePositionHistory', JSON.stringify(this.history));
+	    localStorage.setItem('googlePositionOptions', JSON.stringify(this.options));
 	},
 	
 	import: function (string) {
@@ -92,10 +92,10 @@ var Storage = new Class({
 	    var e = JSON.parse(string);
 	    if (e) {
 	        if (e.history) {
-	        	this.appHistory = e.history;
+	        	this.history = e.history;
 	        }
 	        if (e.options) {
-	        	this.appOptions = e.options;
+	        	this.options = e.options;
 	        }
 	    }
 	    this.save();
@@ -105,9 +105,64 @@ var Storage = new Class({
 	    this.save();
 	    
 	    return JSON.stringify({
-	        history: this.appHistory, options: this.appOptions
+	        history: this.history, options: this.options
 	    });
+	},
+	
+	
+	/**
+	 * Erase an URL or all from keyword
+	 * @param string name
+	 * @param mixed value
+	 * @return bool
+	 */
+	historyEraseUrl: function (keyword, url) {
+		if (!url) {
+			this.history.erase(keyword);
+			return true;
+		}
+		var urls = this.history.get(keyword);
+		if (urls != null && urls.length > 0) {
+	        var h = [];
+	        for (var i = 0; i < urls.length; i++) {
+	            if (urls[i][0] != url) {
+	                h.push(urls[i]);
+	            }
+	        }
+	        if (h.length > 0) {
+	        	this.history.set(keyword, h);
+	        } else {
+	        	this.history.erase(keyword);
+	        }
+	        this.save();
+			return true;
+		}
+		return false;
+	},
+	
+	
+	
+	/**
+	 * Set option. Save after modification.
+	 * @param string name
+	 * @param mixed value
+	 * @return Storage
+	 */
+	setOption: function (name, value) {
+		this.options.set(name, value);
+		this.save();
+		return this;
+	},
+	
+	/**
+	 * Get option
+	 * @param string name
+	 * @return mixed
+	 */
+	getOption: function (name) {
+		return this.options.get(name);
 	}
+	
 	
 });
 var storage = new Storage('default');
@@ -132,7 +187,7 @@ var insertPosition = function (el) {
 
 var displayPosition = function () {
     var search = document.id('search');
-    if (!search || !storage.appOptions.displayPosition) {
+    if (!search || !storage.getOption('displayPosition')) {
         return;
     }
     
@@ -231,25 +286,29 @@ var getPosition = function(el) {
  * @todo : il faudrait rendre effectif par rapport à la recherche en cours
  */
 var backupPosition = function(url, position) {
-    if (!storage.appOptions.backupPosition) {
+    if (!storage.getOption('backupPosition')) {
         return;
     }
     
     var search = getSearchKeywords();
-    if (!storage.appHistory[search]) {
-    	storage.appHistory[search] = [];
+    if (!storage.history.has(search)) {
+    	storage.history.set(search, []);
     }
+    var urls = storage.history.get(search);
     
-    for (var i = 0; i < storage.appHistory[search].length; i++) {
-        if (storage.appHistory[search][i][0] == url) {
-        	storage.appHistory[search][i][1].push({'time': new Date().getTime(), 'position': position});
-            storage.save();
-            return;
+    if (urls.length > 0) {
+        for (var i = 0; i < urls.length; i++) {
+            if (urls[i][0] == url) {
+            	urls[i][1].push({'time': new Date().getTime(), 'position': position});
+            	storage.history.set(search, urls);
+                storage.save();
+                return;
+            }
         }
     }
     
-    var newEntry = [url, [{'time': new Date().getTime(), 'position': position}]];
-    storage.appHistory[search].push(newEntry);
+    urls.push([url, [{'time': new Date().getTime(), 'position': position}]]);
+	storage.history.set(search, urls);
     storage.save();
 };
 
@@ -258,47 +317,49 @@ var backupPosition = function(url, position) {
  * Affiche l'évolution de position d'un site
  */
 var displayPositionChange = function (a) {
-    if (!storage.appOptions.backupPosition) {
+    if (!storage.getOption('backupPosition')) {
         return;
     }
     var search = getSearchKeywords();
-    if (!storage.appHistory[search]) {
+    if (!storage.history.has(search)) {
         return;
     }
-    for (var i = 0; i < storage.appHistory[search].length; i++) {
-        if (storage.appHistory[search][i][0] == a.get('href')) {
-            var positions = storage.appHistory[search][i][1];
-            if (positions.length > 1) {
-                var evolution = positions[positions.length-2].position.toInt() - positions[positions.length-1].position.toInt();
-                var color = '#FFB900';
-                var bColor = '#DDD';
-                var bgColor = '#F0F0F0';
-                var text;
-                if (evolution < 0) {
-                    color = '#DD2700';
-                    text = evolution;
-                } else if (evolution > 0) {
-                    color = '#00C025';
-                    text = '+' + evolution;
-                } else {
-                    color = '#FFB900';
-                    text = '=';
-                }
-                var span = new Element('div', {
-                    text: text,
-                    styles: {
-                        position: 'absolute', top: 5, right: 10,
-                        color: color, 'font-size': 25,
-                        border: '3px solid ' + bColor,
-                        'border-radius': '50%',
-                        padding: '4px 6px',
-                        background: bgColor
-                    }
-                }).inject(a.getParent('li').setStyle('position', 'relative'), 'top');
-            }
-            break;
+    var urls = storage.history.get(search);
+    var url = null;
+    for (var i = 0; i < urls.length; i++) {
+        if (urls[i][0] == a.get('href')) {
+        	url = urls[i];
+        	break;
         }
     }
+    if (!url || url[1].length < 2) {
+    	return;
+    }
+    var positions = url[1];
+    var evolution = positions[positions.length-2].position.toInt() - positions[positions.length-1].position.toInt();
+    var color = '#FFB900', bColor = '#DDD', bgColor = '#F0F0F0';
+    var text;
+    if (evolution < 0) {
+        color = '#DD2700';
+        text = evolution;
+    } else if (evolution > 0) {
+        color = '#00C025';
+        text = '+' + evolution;
+    } else {
+        color = '#FFB900';
+        text = '=';
+    }
+    var span = new Element('div', {
+        text: text,
+        styles: {
+            position: 'absolute', top: 5, right: 10,
+            color: color, 'font-size': 25,
+            border: '3px solid ' + bColor,
+            'border-radius': '50%',
+            padding: '4px 6px',
+            background: bgColor
+        }
+    }).inject(a.getParent('li').setStyle('position', 'relative'), 'top');
 };
 
 
@@ -330,7 +391,7 @@ var searchAddress = function () {
     }
     
     var link, position;
-    var reg = new RegExp("^"+preg_quote(storage.appDatas.address)+".*");
+    var reg = new RegExp("^"+preg_quote(storage.datas.address)+".*");
     for (var i = 0; i < lis.length; i++) {
         // box lié à Google Map
         if (lis[i].id == 'lclbox') {
@@ -340,9 +401,9 @@ var searchAddress = function () {
 
                 if (link) {
                     position = getPosition(link);
-                    if (storage.appDatas.position < position && link.href.match(reg)) {
-                    	storage.appDatas.found = true;
-                    	storage.appDatas.position = position;
+                    if (storage.datas.position < position && link.href.match(reg)) {
+                    	storage.datas.found = true;
+                    	storage.datas.position = position;
                         h4s[j].getParent().getParent().getParent().setStyles({
                             border: '1px solid #FF0000',
                             'border-radius': '5px',
@@ -362,9 +423,9 @@ var searchAddress = function () {
         link = lis[i].getElement('a');
         if (link) {
             position = getPosition(link);
-            if (storage.appDatas.position < position && link.href.match(reg)) {
-            	storage.appDatas.found = true;
-            	storage.appDatas.position = position;
+            if (storage.datas.position < position && link.href.match(reg)) {
+            	storage.datas.found = true;
+            	storage.datas.position = position;
                 lis[i].setStyles({
                     border: '1px solid #FF0000',
                     'border-radius': '5px',
@@ -382,27 +443,27 @@ var searchAddress = function () {
     
     document.id('position-google-next-button').setStyle('display', 'inline');
     
-    if (storage.appDatas.found) {
-        alert("Trouvé !! Position : "+storage.appDatas.position);
-        storage.appDatas.onprogress = false;
+    if (storage.datas.found) {
+        alert("Trouvé !! Position : "+storage.datas.position);
+        storage.datas.onprogress = false;
         storage.save();
-    } else if (storage.appDatas.currentPage < storage.appDatas.maxPages) { // page suivante
+    } else if (storage.datas.currentPage < storage.datas.maxPages) { // page suivante
         var pn = document.id('pnnext');
         if (pn) {
-        	storage.appDatas.currentPage += 1;
-        	storage.appDatas.onprogress = true;
+        	storage.datas.currentPage += 1;
+        	storage.datas.onprogress = true;
             storage.save();
             document.location.href = pn.href;
         } else {
             alert("Désolé, votre adresse est introuvable.");
         }
     } else if (window.confirm("Désolé, votre adresse est introuvable. Chercher plus loin ?")) {
-    	storage.appDatas.maxPages += 10;
+    	storage.datas.maxPages += 10;
         storage.save();
         var pn = document.id('pnnext');
         if (pn) {
-        	storage.appDatas.currentPage += 1;
-        	storage.appDatas.onprogress = true;
+        	storage.datas.currentPage += 1;
+        	storage.datas.onprogress = true;
             storage.save();
             document.location.href = pn.href;
         } else {
@@ -412,37 +473,15 @@ var searchAddress = function () {
 };
 
 
-
-var deleteSiteFromKeyword = function (keyword, site) {
-    var newHistory = {};
-    $each(storage.appHistory, function (sites, _keyword) {
-        if (keyword != _keyword) {
-            newHistory[_keyword] = sites;
-            return;
-        }
-        var h = [];
-        for (var i = 0; i < sites.length; i++) {
-            if (sites[i][0] != site) {
-                h.push(sites[i]);
-            }
-        }
-        if (h.length > 0) {
-            newHistory[_keyword] = h;
-        }
-    });
-    storage.appHistory = newHistory;
-    updateGooglePositionHistory();
-    storage.save();
-};
 var searchSiteFromKeyword = function(keyword, site) {
 	
 	if (site) {
-		storage.appDatas.address = site;
-		storage.appDatas.currentPage = 1;
-		storage.appDatas.maxPages = 10;
-		storage.appDatas.position = 0;
-		storage.appDatas.onprogress = true;
-		storage.appDatas.found = false;
+		storage.datas.address = site;
+		storage.datas.currentPage = 1;
+		storage.datas.maxPages = 10;
+		storage.datas.position = 0;
+		storage.datas.onprogress = true;
+		storage.datas.found = false;
 		storage.save();
 	}
 
@@ -502,7 +541,7 @@ var renderMenu = function (parent) {
         if (!window.confirm('Effacer toutes les données liées à l\extension ?')) {
             return;
         }
-        storage.appHistory = storage.appOptions = storage.appDatas = {};
+        storage.history = storage.options = storage.datas = {};
         storage.save();
     });
     document.id('menu-google-position-about').addEvent('click', function () {
@@ -547,8 +586,8 @@ var init = function () {
     
     
     // Highlight les sites
-    if (storage.appOptions.highlightSites) {
-    	highlightSites(storage.appOptions.highlightSites);
+    if (storage.getOption('highlightSites')) {
+    	highlightSites(storage.getOption('highlightSites'));
     }
     
     var form = new Element('form', {
@@ -567,7 +606,7 @@ var init = function () {
         }),
         new Element('input', {
             type: 'text', id: 'positionGoogleUrl', name: 'positionGoogleUrl',
-            value: storage.appDatas.address?storage.appDatas.address:'', size: 50,
+            value: storage.datas.address?storage.datas.address:'', size: 50,
             title: 'Adresse du site ou de la page recherché.'
         }),
         new Element('input', {
@@ -596,15 +635,15 @@ var init = function () {
         	document.id('positionGoogleUrl').set('value', address);
         }
         
-        storage.appDatas.address = address;
-        storage.appDatas.currentPage = 1;
-        storage.appDatas.maxPages = 10;
-        storage.appDatas.position = 0;
-        storage.appDatas.onprogress = false;
-        storage.appDatas.found = false;
+        storage.datas.address = address;
+        storage.datas.currentPage = 1;
+        storage.datas.maxPages = 10;
+        storage.datas.position = 0;
+        storage.datas.onprogress = false;
+        storage.datas.found = false;
         storage.save();
         if (getCurrentPage() != 1) {
-        	storage.appDatas.onprogress = true;
+        	storage.datas.onprogress = true;
             storage.save();
             document.location.href = document.location.href.replace(/start=[0-9]+/, 'start=0');
         } else {
@@ -613,14 +652,14 @@ var init = function () {
     });
 
     document.id('position-google-next-button').addEvent('click', function (event) {
-    	storage.appDatas.maxPages = getCurrentPage() + 10;
-    	storage.appDatas.found = false;
+    	storage.datas.maxPages = getCurrentPage() + 10;
+    	storage.datas.found = false;
         storage.save();
         searchAddress();
     });
     
-    if (storage.appDatas.onprogress) {
-    	storage.appDatas.onprogress = false;
+    if (storage.datas.onprogress) {
+    	storage.datas.onprogress = false;
         storage.save();
         searchAddress();
     }
@@ -633,7 +672,7 @@ var timer;
 var check = function () {
     var menu = document.id('gb_1');
     if (menu && menu.hasClass('gbz0l')) {
-		if (storage.appOptions.displayPosition) {
+		if (storage.getOption('displayPosition')) {
 			displayPosition();
 		}
 		init();
@@ -729,12 +768,18 @@ var Box = new Class({
 		}
 		
 		this.getElement().setStyle('opacity', 1);
+		this.opened = true;
 	},
 	
 	close: function () {
 		this.getElement().setStyles({
 			display: 'none'
 		});
+		this.opened = false;
+	},
+	
+	isOpen: function () {
+		return this.opened;
 	},
 	
 	/**
@@ -743,7 +788,6 @@ var Box = new Class({
 	 */
 	setStyles: function (newStyles) {
 		this.setOptions({styles: $merge(this.options.styles, newStyles)});
-		console.log(this.options.styles);
 		if (this.rendered) {
 			this.getElement().setStyles(this.options.styles);
 		}
@@ -847,10 +891,10 @@ var BoxOptions = new Class({
 	Extends: Box,
 	
 	open: function () {
-	    document.id('positionGoogleOptionsDisplayPosition'+(storage.appOptions.displayPosition?1:0)).checked = true;
-	    document.id('positionGoogleOptionsStorePosition'+(storage.appOptions.backupPosition?1:0)).checked = true;
-	    if (storage.appOptions.highlightSites.join) {
-	        document.id('positionGoogleOptionsHighlightSite').set('value', storage.appOptions.highlightSites.join("\n"));
+	    document.id('positionGoogleOptionsDisplayPosition'+(storage.getOption('displayPosition')?1:0)).checked = true;
+	    document.id('positionGoogleOptionsStorePosition'+(storage.getOption('backupPosition')?1:0)).checked = true;
+	    if (storage.getOption('highlightSites').join) {
+	        document.id('positionGoogleOptionsHighlightSite').set('value', storage.getOption('highlightSites').join("\n"));
 	    }
 		
 		return this.parent();
@@ -898,10 +942,10 @@ var BoxOptions = new Class({
 		this.getElement().getElement('form').addEvent('submit', function (event) {
             event.stop();
             
-            storage.appOptions.displayPosition = document.id('positionGoogleOptionsDisplayPosition0').checked?false:true;
-            storage.appOptions.backupPosition = document.id('positionGoogleOptionsStorePosition0').checked?false:true;
+            storage.setOption('displayPosition', document.id('positionGoogleOptionsDisplayPosition0').checked?false:true);
+            storage.setOption('backupPosition', document.id('positionGoogleOptionsStorePosition0').checked?false:true);
             
-            if (!storage.appOptions.displayPosition) {
+            if (!storage.getOption('displayPosition')) {
                 var positions = document.getElements('span.spanPositionGoogle');
                 if (positions.length > 0) {
                     positions.destroy();
@@ -914,8 +958,8 @@ var BoxOptions = new Class({
                     sites.push(site);
             	}
             });
-            storage.appOptions.highlightSites = sites;
-            highlightSites(storage.appOptions.highlightSites);
+            storage.setOption('highlightSites', sites);
+            highlightSites(storage.getOption('highlightSites'));
 
             storage.save();
             this.close();
@@ -1032,7 +1076,7 @@ var BoxHistory = new Class({
 	    var content = this.getElement().getElement('div.content').empty();
 	    var date = new Date();
 	    
-	    $each(storage.appHistory, function (sites, keyword) {
+	    $each(storage.history, function (sites, keyword) {
 	        var title = new Element('h3', {text: keyword})
 				.adopt(new Element('img', {
 						src: 'http://ilatumi.org/positiongoogle/search.png',
@@ -1083,7 +1127,9 @@ var BoxHistory = new Class({
 							'alt="supprimer" title="Supprimer cette entrée ?" /></a>', 'class': 'delete'})
 	                    .addEvent('click', function (e) {
 	                        e.stop();
-	                        deleteSiteFromKeyword(keyword, this.getParent('tr').getElement('td').get('text'));
+	            	        if (storage.historyEraseUrl(keyword, this.getParent('tr').getElement('td').get('text')) && boxHistory.isOpen()) {
+	            	        	boxHistory.render();
+	            	        }
 	                    }),
 	                new Element('td', {html: '<a href="#"><img src="http://ilatumi.org/positiongoogle/search.png" '+
 							'alt="rechercher" title="Rechercher à nouveau ce site avec le mot clé « '+keyword+' »" /></a>', 'class': 'search'})
