@@ -3,8 +3,9 @@
 // @namespace      position-google
 // @description    Recherche de position de site ou de page dans le SERP de Google
 // @include        http://www.google.*
+// @include        http://www.bing.*
 // @require        http://userscripts.org/scripts/source/44063.user.js
-// @version        1.2.4
+// @version        1.2.5a
 // ==/UserScript==
 
 if (typeof unsafeWindow == "undefined") {
@@ -19,7 +20,7 @@ if ($type(localStorage) != "object") {
 	return;
 }
 
-var version = "1.2.4";
+var version = "1.2.5a";
 
 // migrate from 1.2.4 to 1.2.5
 /*
@@ -39,6 +40,9 @@ var version = "1.2.4";
 	
 })();
 */
+
+var isGoogle = document.location.href.test(/https?:\/\/[^.]*\.google\..*/);
+var isBing = document.location.href.test(/https?:\/\/[^.]*\.bing\..*/);
 
 /**
  * Quote regular expression characters.
@@ -93,6 +97,9 @@ var Storage = new Class({
 	    }
 	    if (o) {
 	        this.options.extend(o);
+	        if (o.highlightSites.split) {
+	        	this.options.highlightSites = o.highlightSites.split("\n");
+	        }
 	    }
 	},
 	
@@ -178,6 +185,41 @@ var Storage = new Class({
 	 */
 	getOption: function (name) {
 		return this.options.get(name);
+	},
+
+	/**
+	 * Backup a URL's position
+	 * @todo : il faudrait rendre effectif par rapport à la recherche en cours
+	 * @param string url
+	 * @param int position
+	 * @return Storage
+	 */
+	backupPosition: function(url, position) {
+	    if (!this.getOption('backupPosition')) {
+	        return;
+	    }
+	    
+	    var keywords = serp.getSearchKeywords();
+	    if (!this.history.has(keywords)) {
+	    	this.history.set(keywords, []);
+	    }
+	    var urls = this.history.get(keywords);
+	    
+	    if (urls.length > 0) {
+	        for (var i = 0; i < urls.length; i++) {
+	            if (urls[i][0] == url) {
+	            	urls[i][1].push({'time': new Date().getTime(), 'position': position});
+	            	this.history.set(keywords, urls);
+	                this.save();
+	                return this;
+	            }
+	        }
+	    }
+	    
+	    urls.push([url, [{'time': new Date().getTime(), 'position': position}]]);
+		this.history.set(search, urls);
+	    this.save();
+	    return this;
 	}
 	
 	
@@ -208,7 +250,16 @@ var Serp = new Class({
 	
 	getSearchKeywords: function () {
 		return '';
+	},
+	
+	highlightSites: function (sites) {
+		return this;
+	},
+	
+	displayPositionChange : function (a) {
+		return this;
 	}
+
 	
 });
 
@@ -264,8 +315,7 @@ var GoogleSerp = new Class({
 	 * Get URL position
 	 * @return int
 	 */
-	getPosition: function (link)
-	{
+	getPosition: function (link) {
 		if ($type(link) == 'string') {
 			link = this.container.getElement('link='+link);
 		}
@@ -297,7 +347,7 @@ var GoogleSerp = new Class({
 
 
 	/**
-	 * Récupère la recherche en cours
+	 * Get keywords
 	 * @return string
 	 */
 	getSearchKeywords: function () {
@@ -309,143 +359,237 @@ var GoogleSerp = new Class({
 	        }
 	    }
 	    return '';
+	},
+
+	
+	/**
+	 * Highlight the URLs
+	 * @param array sites
+	 * @return GoogleSerp
+	 */
+	highlightSites : function (sites) {
+		if (!this.getContainer()) {
+			return this;
+		}
+		
+	    if ($type(sites) != "array") {
+	    	sites = [sites];
+	    }
+	    
+	    var lis = this.container.getElements('li');
+	    if (lis.length == 0) {
+	        return this;
+	    }
+	    lis.each(function (li) {
+	        // box lié à Google Map
+	        if (li.id == 'lclbox') {
+	            var h4s = li.getElements('h4');
+	            h4s.each(function (h4) {
+	            	this.highlightSite(h4.getElement('a'), sites);
+	            }.bind(this));
+	        } else {
+	        	this.highlightSite(li.getElement('a'), sites);
+	        }
+	    }.bind(this));
+	    
+	    return this;
+	},
+	
+	/**
+	 * Highlight an URL
+	 * @param element el
+	 * @param array sites
+	 * @return GoogleSerp
+	 */
+	highlightSite : function (el, sites) {
+		if (el.get('tag') != 'a') {
+			return this;
+		}
+		el.setStyle('background', 'transparent');
+		sites.each(function (site) {
+		    var reg = new RegExp("^"+preg_quote(site)+".*");
+			if (el.get('href').match(reg)) {
+				el.setStyle('background', '#FFFF00');
+			}
+		});
+		return this;
+	},
+
+
+	/**
+	 * Display a site's evolution
+	 * @param string|element
+	 * return GoogleSerp
+	 */
+	displayPositionChange : function (a) {
+	    var keywords = serp.getSearchKeywords();
+	    if (!storage.history.has(keywords)) {
+	        return this;
+	    }
+	    var urls = storage.history.get(keywords);
+	    var url = null;
+	    for (var i = 0; i < urls.length; i++) {
+	        if (urls[i][0] == a.get('href')) {
+	        	url = urls[i];
+	        	break;
+	        }
+	    }
+	    if (!url || url[1].length < 2) {
+	    	return this;
+	    }
+	    var positions = url[1];
+	    var evolution = positions[positions.length-2].position.toInt() - positions[positions.length-1].position.toInt();
+	    var color = '#FFB900', bColor = '#DDD', bgColor = '#F0F0F0';
+	    var text;
+	    if (evolution < 0) {
+	        color = '#DD2700';
+	        text = evolution;
+	    } else if (evolution > 0) {
+	        color = '#00C025';
+	        text = '+' + evolution;
+	    } else {
+	        color = '#FFB900';
+	        text = '=';
+	    }
+	    var div = new Element('div', {
+	        text: text,
+	        styles: {
+	            position: 'absolute', top: 5, right: 10,
+	            color: color, 'font-size': 25,
+	            border: '3px solid ' + bColor,
+	            'border-radius': '50%',
+	            padding: '4px 6px',
+	            background: bgColor
+	        }
+	    }).inject(a.getParent('li').setStyle('position', 'relative'), 'top');
 	}
 	
 });
-var serp = new GoogleSerp();
 
 
-
-/**
- * @param array sites
- * @return void
- */
-var highlightSites = function (sites) {
-    var search = document.id('search');
-    if (!search) {
-        return;
-    }
-    
-    if ($type(sites) != "array") {
-    	sites = [sites];
-    }
-    
-    var lis = search.getElements('li');
-    if (lis.length == 0) {
-        return;
-    }
-    
-    lis.each(function (li) {
-        // box lié à Google Map
-        if (li.id == 'lclbox') {
-            var h4s = li.getElements('h4');
-            h4s.each(function (h4) {
-            	highlightSite(h4.getElement('a'), sites);
-            });
-        } else {
-        	highlightSite(li.getElement('a'), sites);
-        }
-    });
-};
-var highlightSite = function (el, sites) {
-	if (el.get('tag') != 'a') {
-		return;
-	}
-	el.setStyle('background', 'transparent');
-	sites.each(function (site) {
-	    var reg = new RegExp("^"+preg_quote(site)+".*");
-		if (el.get('href').match(reg)) {
-			el.setStyle('background', '#FFFF00');
+var BingSerp = new Class({
+	
+	Extends: Serp,
+	
+	container: null,
+	currentPage: null,
+	
+	getContainer: function () {
+		this.container = document.id('results');
+		return this.container;
+	},
+	
+	displayPosition: function () {
+		if (!this.getContainer()) {
+			return this;
 		}
-	});
-};
+	    var lis = this.container.getElements('li.sa_wr');
+	    var currentPage = this.getCurrentPage() - 1;
+	    if (lis.length > 0) {
+		    lis.each(function (li, i) {
+		    	var el = li.getElement('a');
+	    	    var position = currentPage * 10 + i +1;
+	    	    if (position == 0 || document.id('search-'+position)) {
+	    	        return;
+	    	    }
+	    	    el.set('id', 'link-' + position);
+	    	    var node = new Element('span', {
+	    	        id: 'search-'+position, styles: {color: '#F06F31'},
+	    	        'class': 'serpPosition'
+	    	    }).set('text', '#'+position+' - ');
+	    	    node.inject(el, 'top');
+		    }.bind(this));
+	    }
+	    
+	    return this;
+	},
+	
+	getPosition: function (link) {
+		if ($type(link) == 'string') {
+			link = this.container.getElement('link='+link);
+		}
+		
+		if ($type(link) == 'element' && link.get('tag') == 'a') {
+			var parent = link.getParent('ul.sb_results');
+			var parentLi = link.getParent('li.sa_wr');
+			return (this.getCurrentPage() -1) * 10 + parent.getElements('li.sa_wr').indexOf(parentLi) + 1;
+		}
+		
+	    return 0;
+	},
+	
+	getCurrentPage: function () {
+		if (this.currentPage != null) {
+			return this.currentPage;
+		}
+		var el = document.getElement('a.sb_pagS');
+		if (el) {
+			return el.get('text').toInt();
+		}
+		return 1;
+	},
+	
+	getSearchKeywords: function () {
+		if (document.id('sb_form_q')) {
+			return document.id('sb_form_q').get('value');
+		}
+		return '';
+	},
+
+	
+	/**
+	 * Highlight the URLs
+	 * @param array sites
+	 * @return BingSerp
+	 */
+	highlightSites : function (sites) {
+		if (!this.getContainer()) {
+			return this;
+		}
+		
+	    if ($type(sites) != "array") {
+	    	sites = [sites];
+	    }
+	    
+	    var lis = this.container.getElements('li.sa_wr');
+	    if (lis.length == 0) {
+	        return this;
+	    }
+	    lis.each(function (li) {
+	        this.highlightSite(li.getElement('a'), sites);
+	    }.bind(this));
+	    
+	    return this;
+	},
+	
+	/**
+	 * Highlight an URL
+	 * @param element el
+	 * @param array sites
+	 * @return BingSerp
+	 */
+	highlightSite : function (el, sites) {
+		if (el.get('tag') != 'a') {
+			return this;
+		}
+		el.setStyle('background', 'transparent');
+		sites.each(function (site) {
+		    var reg = new RegExp("^"+preg_quote(site)+".*");
+			if (el.get('href').match(reg)) {
+				el.setStyle('background', '#FFFF00');
+			}
+		});
+		return this;
+	}
+	
+});
 
 
-/**
- * Sauvegarde la position d'une URL
- * @todo : il faudrait rendre effectif par rapport à la recherche en cours
- */
-var backupPosition = function(url, position) {
-    if (!storage.getOption('backupPosition')) {
-        return;
-    }
-    
-    var search = serp.getSearchKeywords();
-    if (!storage.history.has(search)) {
-    	storage.history.set(search, []);
-    }
-    var urls = storage.history.get(search);
-    
-    if (urls.length > 0) {
-        for (var i = 0; i < urls.length; i++) {
-            if (urls[i][0] == url) {
-            	urls[i][1].push({'time': new Date().getTime(), 'position': position});
-            	storage.history.set(search, urls);
-                storage.save();
-                return;
-            }
-        }
-    }
-    
-    urls.push([url, [{'time': new Date().getTime(), 'position': position}]]);
-	storage.history.set(search, urls);
-    storage.save();
-};
-
-
-/**
- * Affiche l'évolution de position d'un site
- */
-var displayPositionChange = function (a) {
-    if (!storage.getOption('backupPosition')) {
-        return;
-    }
-    var search = serp.getSearchKeywords();
-    if (!storage.history.has(search)) {
-        return;
-    }
-    var urls = storage.history.get(search);
-    var url = null;
-    for (var i = 0; i < urls.length; i++) {
-        if (urls[i][0] == a.get('href')) {
-        	url = urls[i];
-        	break;
-        }
-    }
-    if (!url || url[1].length < 2) {
-    	return;
-    }
-    var positions = url[1];
-    var evolution = positions[positions.length-2].position.toInt() - positions[positions.length-1].position.toInt();
-    var color = '#FFB900', bColor = '#DDD', bgColor = '#F0F0F0';
-    var text;
-    if (evolution < 0) {
-        color = '#DD2700';
-        text = evolution;
-    } else if (evolution > 0) {
-        color = '#00C025';
-        text = '+' + evolution;
-    } else {
-        color = '#FFB900';
-        text = '=';
-    }
-    var span = new Element('div', {
-        text: text,
-        styles: {
-            position: 'absolute', top: 5, right: 10,
-            color: color, 'font-size': 25,
-            border: '3px solid ' + bColor,
-            'border-radius': '50%',
-            padding: '4px 6px',
-            background: bgColor
-        }
-    }).inject(a.getParent('li').setStyle('position', 'relative'), 'top');
-};
 
 
 
 var searchAddress = function () {
-    var search = document.id('search');
+    var search = serp.getContainer();
     if (!search) {
         return;
     }
@@ -457,9 +601,10 @@ var searchAddress = function () {
     
     var link, position;
     var reg = new RegExp("^"+preg_quote(storage.datas.address)+".*");
+    
     for (var i = 0; i < lis.length; i++) {
         // box lié à Google Map
-        if (lis[i].id == 'lclbox') {
+        if (isGoogle && lis[i].id == 'lclbox') {
             var h4s = lis[i].getElements('h4');
             for (var j = 0; j < h4s.length; j++) {
                 link = h4s[j].getElement('a');
@@ -476,8 +621,12 @@ var searchAddress = function () {
                             '-webkit-border-radius': '5px',
                             padding: '10px'
                         });
-                        backupPosition(link.href, position);
-                        displayPositionChange(link);
+                        if (storage.getOption('backupPosition')) {
+                        	storage.backupPosition(link.href, position);
+                        }
+                	    if (storage.getOption('backupPosition')) {
+                            serp.displayPositionChange(link);
+                	    }
                         break;
                     }
                 }
@@ -498,8 +647,12 @@ var searchAddress = function () {
                     '-webkit-border-radius': '5px',
                     padding: '10px'
                 });
-                backupPosition(link.href, position);
-                displayPositionChange(link);
+                if (storage.getOption('backupPosition')) {
+                	storage.backupPosition(link.href, position);
+                }
+        	    if (storage.getOption('backupPosition')) {
+                    serp.displayPositionChange(link);
+        	    }
                 break;
             }
         }
@@ -509,11 +662,15 @@ var searchAddress = function () {
     document.id('position-google-next-button').setStyle('display', 'inline');
     
     if (storage.datas.found) {
-        alert("Trouvé !! Position : "+storage.datas.position);
+        alert("Trouvé !! Position : "+position);
         storage.datas.onprogress = false;
         storage.save();
     } else if (storage.datas.currentPage < storage.datas.maxPages) { // page suivante
-        var pn = document.id('pnnext');
+    	if (isGoogle) {
+    		var pn = document.id('pnnext');
+    	} else {
+    		var pn = document.getElement('a.sb_pagN');
+    	}
         if (pn) {
         	storage.datas.currentPage += 1;
         	storage.datas.onprogress = true;
@@ -525,7 +682,11 @@ var searchAddress = function () {
     } else if (window.confirm("Désolé, votre adresse est introuvable. Chercher plus loin ?")) {
     	storage.datas.maxPages += 10;
         storage.save();
-        var pn = document.id('pnnext');
+    	if (isGoogle) {
+    		var pn = document.id('pnnext');
+    	} else {
+    		var pn = document.getElement('a.sb_pagN');
+    	}
         if (pn) {
         	storage.datas.currentPage += 1;
         	storage.datas.onprogress = true;
@@ -536,7 +697,6 @@ var searchAddress = function () {
         }
     }
 };
-
 
 var searchSiteFromKeyword = function(keyword, site) {
 	
@@ -559,7 +719,11 @@ var searchSiteFromKeyword = function(keyword, site) {
 };
 
 
-var renderMenu = function (parent) {
+
+
+
+
+var renderMenuGoogle = function (parent) {
     if (document.id('positionGoogleTab')) {
     	return;
     }
@@ -590,29 +754,115 @@ var renderMenu = function (parent) {
         menu.setStyle('display', this.hasClass('gbto')?'block':'none');
     });
     
-    document.id('menu-google-position-options').addEvent('click', function () {
+    menuInitEvents(menu);
+};
+
+
+var renderMenuBing = function () {
+	if (document.id('BingPosition') || (!document.id('hp_sw_hdr') && !document.id('sw_abar'))) {
+		return;
+	}
+	var swRight, parent, item;
+	
+    var menu = new Element('div').set('html',
+		'<ol style="margin: 0; padding: 0; list-style: none;">\
+            <li id="menu-google-position-options"><a href="#">Paramètrer l\'extension</a></li>\
+            <li id="menu-google-position-history"mtc"><a href="#">Voir l\'historique</a></li>\
+            <li id="menu-google-position-export"><a href="#">Exporter les données</a></li>\
+            <li id="menu-google-position-import"c"><a href="#">Importer les données</a></li>\
+            <li id="menu-google-position-erase"><a href="#">Effacer les données</a></li>\
+    		<li id="menu-google-position-about"><a href="#">À propos</a></li>\
+		</ol>'
+    );
+    menu.getElements('li').setStyles({padding: '2px 5px',
+    	float: 'none'});
+    menu.getElements('a').setStyles({float: 'none'});
+    menu.setStyles({
+    	position: 'absolute', display: 'none', 'white-space': 'nowrap'
+    });
+	
+	if (document.id('hp_sw_hdr')) {
+		parent = document.id('hp_sw_hdr');
+		swRight = parent.getElement('ul.sw_right');
+		menu.inject(document.body, 'top');
+		if (swRight) {
+			item = new Element('li', {id: 'BingPosition'}).set('html',
+				'<span><a href="#">BingPosition</a></span> |'
+			);
+			item.inject(swRight, 'top');
+			menu.setStyles({
+				left: item.getCoordinates().left, top: 20,
+		    	border: '1px solid #BEBEBE', 'box-shadow': '0 1px 5px #FFFFFF',
+		    	'z-index': 999, 'border-top': 'none'
+			});
+		}
+	} else if (document.id('sw_abar')) {
+		parent = document.id('sw_abar');
+		swRight = parent.getElement('ul#sw_abarl');
+		if (swRight) {
+			item = new Element('li', {id: 'BingPosition'}).set('html',
+				'<a href="#">BingPosition <span>▼</span></a>'
+			).inject(swRight, 'bottom');
+			menu.inject(item, 'bottom').setStyles({
+				'padding-top': '1.67em', 'z-index': 10
+			});
+			menu.getElement('ol').setStyles({
+				background: '#FFFFFF', border: '1px solid #E5E5E5',
+				'line-height': '1.4em'
+			});
+		}
+	}
+	if (!swRight) {
+		return;
+	}
+	
+    item.getElement('a').addEvent('click', function (e) {
+    	e.stop();
+    	menu.setStyle('display', 'block');
+    });
+    menuInitEvents(menu);
+};
+
+var menuInitEvents = function (menu) {
+    document.id('menu-google-position-options').addEvent('click', function (e) {
+    	e.stop();
+    	menu.setStyle('display', 'none');
     	boxOptions.render().open();
     });
-    document.id('menu-google-position-history').addEvent('click', function () {
+    document.id('menu-google-position-history').addEvent('click', function (e) {
+    	e.stop();
+    	menu.setStyle('display', 'none');
     	boxHistory.render().open();
     });
-    document.id('menu-google-position-import').addEvent('click', function () {
+    document.id('menu-google-position-import').addEvent('click', function (e) {
+    	e.stop();
+    	menu.setStyle('display', 'none');
     	boxImport.render().open();
     });
-    document.id('menu-google-position-export').addEvent('click', function () {
+    document.id('menu-google-position-export').addEvent('click', function (e) {
+    	e.stop();
+    	menu.setStyle('display', 'none');
     	boxExport.render().open();
     });
-    document.id('menu-google-position-erase').addEvent('click', function () {
+    document.id('menu-google-position-erase').addEvent('click', function (e) {
         if (!window.confirm('Effacer toutes les données liées à l\extension ?')) {
             return;
         }
         storage.history = storage.options = storage.datas = {};
         storage.save();
     });
-    document.id('menu-google-position-about').addEvent('click', function () {
+    document.id('menu-google-position-about').addEvent('click', function (e) {
+    	e.stop();
+    	menu.setStyle('display', 'none');
     	boxAbout.render().open();
     });
+    document.body.addEvent('click', function () {
+    	menu.setStyle('display', 'none');
+    });
 };
+
+
+
 
 var boxAbout;
 var boxImport;
@@ -620,6 +870,7 @@ var boxExport;
 var boxHistory;
 var boxOptions;
 
+var serp;
 
 var init = function () {
 	if (!boxAbout) {
@@ -638,11 +889,14 @@ var init = function () {
 		boxOptions = new BoxOptions();
 	}
     
-
-	renderMenu();
+	if (isGoogle) {
+		renderMenuGoogle();
+	} else if (isBing) {
+		renderMenuBing();
+	}
     
     
-    if (!document.id('search')) {
+    if (!serp.getContainer()) {
         return false;
     }
     if (document.id('google-search-position')) {
@@ -652,7 +906,7 @@ var init = function () {
     
     // Highlight les sites
     if (storage.getOption('highlightSites')) {
-    	highlightSites(storage.getOption('highlightSites'));
+    	serp.highlightSites(storage.getOption('highlightSites'));
     }
     
     var form = new Element('form', {
@@ -662,7 +916,7 @@ var init = function () {
         id: 'google-search-position',
         styles: {margin: '0 0 10px 0'}
     });
-    form.adopt(container).inject(document.id('search'), 'top');
+    form.adopt(container).inject(serp.getContainer(), 'top');
     
     container.adopt(
         new Element('label', {
@@ -735,15 +989,25 @@ var init = function () {
 
 var timer;
 var check = function () {
-    var menu = document.id('gb_1');
-    if (menu && menu.hasClass('gbz0l')) {
+
+	if (isGoogle) {
+		serp = new GoogleSerp();
+	    var menu = document.id('gb_1');
+	    if (menu && menu.hasClass('gbz0l')) {
+			if (storage.getOption('displayPosition')) {
+				serp.displayPosition();
+			}
+			init();
+	    }
+	} else if (isBing) {
+		serp = new BingSerp();
 		if (storage.getOption('displayPosition')) {
 			serp.displayPosition();
 		}
 		init();
-    }
+	}
     
-    timer = setTimeout(check, 500);
+    timer = setTimeout(check, 1000);
 };
 
 
@@ -793,7 +1057,8 @@ var Box = new Class({
             '-moz-box-shadow': '0 0 30px #999',
             '-webkit-box-shadow': '0 0 30px #999',
             'z-index': 9999,
-            'display': 'none'
+            'display': 'none',
+            color: '#000'
         }
 	},
 	
@@ -1024,7 +1289,7 @@ var BoxOptions = new Class({
             	}
             });
             storage.setOption('highlightSites', sites);
-            highlightSites(storage.getOption('highlightSites'));
+            serp.highlightSites(storage.getOption('highlightSites'));
 
             storage.save();
             this.close();
