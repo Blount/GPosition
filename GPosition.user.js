@@ -5,7 +5,7 @@
 // @include        http://www.google.*
 // @include        http://www.bing.*
 // @require        http://userscripts.org/scripts/source/44063.user.js
-// @version        1.2.5a
+// @version        1.3.0
 // ==/UserScript==
 
 if (typeof unsafeWindow == "undefined") {
@@ -20,7 +20,7 @@ if ($type(localStorage) != "object") {
 	return;
 }
 
-var version = "1.2.5a";
+var version = "1.3.0";
 
 // migrate from 1.2.4 to 1.2.5
 /*
@@ -217,7 +217,7 @@ var Storage = new Class({
 	    }
 	    
 	    urls.push([url, [{'time': new Date().getTime(), 'position': position}]]);
-		this.history.set(search, urls);
+		this.history.set(keywords, urls);
 	    this.save();
 	    return this;
 	}
@@ -288,7 +288,7 @@ var GoogleSerp = new Class({
 		            var h4s = li.getElements('h4');
 		            h4s.each(function (h4) {
 		            	this._displayPosition(h4.getElement('a'));
-		            });
+		            }.bind(this));
 		        } else {
 		        	this._displayPosition(li.getElement('a'));
 		        }
@@ -825,22 +825,30 @@ var renderMenuBing = function () {
 
 var menuInitEvents = function (menu) {
     document.id('menu-google-position-options').addEvent('click', function (e) {
-    	e.stop();
+    	if (isBing) {
+        	e.stop();
+    	}
     	menu.setStyle('display', 'none');
     	boxOptions.render().open();
     });
     document.id('menu-google-position-history').addEvent('click', function (e) {
-    	e.stop();
+    	if (isBing) {
+        	e.stop();
+    	}
     	menu.setStyle('display', 'none');
     	boxHistory.render().open();
     });
     document.id('menu-google-position-import').addEvent('click', function (e) {
-    	e.stop();
+    	if (isBing) {
+        	e.stop();
+    	}
     	menu.setStyle('display', 'none');
     	boxImport.render().open();
     });
     document.id('menu-google-position-export').addEvent('click', function (e) {
-    	e.stop();
+    	if (isBing) {
+        	e.stop();
+    	}
     	menu.setStyle('display', 'none');
     	boxExport.render().open();
     });
@@ -852,12 +860,17 @@ var menuInitEvents = function (menu) {
         storage.save();
     });
     document.id('menu-google-position-about').addEvent('click', function (e) {
-    	e.stop();
+    	if (isBing) {
+        	e.stop();
+    	}
     	menu.setStyle('display', 'none');
     	boxAbout.render().open();
     });
     document.body.addEvent('click', function () {
     	menu.setStyle('display', 'none');
+    	if (isGoogle) {
+    		document.id('positionGoogleTab').removeClass('gbto');
+    	}
     });
 };
 
