@@ -97,7 +97,7 @@ var Storage = new Class({
 	    }
 	    if (o) {
 	        this.options.extend(o);
-	        if (o.highlightSites.split) {
+	        if (o.highlightSites && o.highlightSites.split) {
 	        	this.options.highlightSites = o.highlightSites.split("\n");
 	        }
 	    }
@@ -580,6 +580,55 @@ var BingSerp = new Class({
 			}
 		});
 		return this;
+	},
+
+
+	/**
+	 * Display a site's evolution
+	 * @param string|element
+	 * return BingSerp
+	 */
+	displayPositionChange : function (a) {
+	    var keywords = serp.getSearchKeywords();
+	    if (!storage.history.has(keywords)) {
+	        return this;
+	    }
+	    var urls = storage.history.get(keywords);
+	    var url = null;
+	    for (var i = 0; i < urls.length; i++) {
+	        if (urls[i][0] == a.get('href')) {
+	        	url = urls[i];
+	        	break;
+	        }
+	    }
+	    if (!url || url[1].length < 2) {
+	    	return this;
+	    }
+	    var positions = url[1];
+	    var evolution = positions[positions.length-2].position.toInt() - positions[positions.length-1].position.toInt();
+	    var color = '#FFB900', bColor = '#DDD', bgColor = '#F0F0F0';
+	    var text;
+	    if (evolution < 0) {
+	        color = '#DD2700';
+	        text = evolution;
+	    } else if (evolution > 0) {
+	        color = '#00C025';
+	        text = '+' + evolution;
+	    } else {
+	        color = '#FFB900';
+	        text = '=';
+	    }
+	    var div = new Element('div', {
+	        text: text,
+	        styles: {
+	            position: 'absolute', top: 5, right: 10,
+	            color: color, 'font-size': 25,
+	            border: '3px solid ' + bColor,
+	            'border-radius': '50%',
+	            padding: '4px 6px',
+	            background: bgColor
+	        }
+	    }).inject(a.getParent('li').setStyle('position', 'relative'), 'top');
 	}
 	
 });
