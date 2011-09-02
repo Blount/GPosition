@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name           GPosition
 // @namespace      position-google
-// @description    Recherche de position de site ou de page dans le SERP de Google
+// @description    Recherche de position de site ou de page dans le SERP de Google et Bing
 // @include        http://www.google.*
 // @include        http://www.bing.*
 // @require        http://userscripts.org/scripts/source/44063.user.js
