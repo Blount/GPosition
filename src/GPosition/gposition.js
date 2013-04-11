@@ -5,41 +5,15 @@
 // @include        http://www.google.*
 // @include        http://www.bing.*
 // @require        http://userscripts.org/scripts/source/44063.user.js
-// @version        1.3.1
+// @version        1.3.4
 // ==/UserScript==
-
-if (typeof unsafeWindow == "undefined") {
-    unsafeWindow = window;
-} else if (unsafeWindow.console) {
-    // utiliser pour le debug
-    console.log = unsafeWindow.console.log;
-}
 
 if ($type(localStorage) != "object") {
     alert('localStorage not supported.');
     return;
 }
 
-var version = "1.3.1";
-
-// migrate from 1.2.4 to 1.2.5
-/*
-(function () {
-    if (localStorage.getItem('googlePosition')) {
-        //localStorage.setItem('', localStorage.getItem('googlePosition'));
-    }
-
-    if (localStorage.getItem('googlePositionHistory')) {
-        //localStorage.setItem('', localStorage.getItem('googlePositionHistory'));
-    }
-    
-    if (localStorage.getItem('googlePositionOptions')) {
-        //localStorage.setItem('', localStorage.getItem('googlePositionOptions'));
-    }
-    
-    
-})();
-*/
+var version = "1.3.4";
 
 var isGoogle = document.location.href.test(/https?:\/\/[^.]*\.google\..*/);
 var isBing = document.location.href.test(/https?:\/\/[^.]*\.bing\..*/);
@@ -351,7 +325,7 @@ var GoogleSerp = new Class({
      * @return string
      */
     getSearchKeywords: function () {
-        var el = document.id('lst-ib');
+        var el = document.getElement('input[name=q]');
         if (el) {
         return el.get('value');
         }
@@ -770,31 +744,34 @@ var searchSiteFromKeyword = function(keyword, site) {
 
 
 var renderMenuGoogle = function (parent) {
-    if (document.id('positionGoogleTab')) {
+    if (document.id("positionGoogleTab")) {
         return;
     }
-    var ol = document.id('gbg').getElement('ol.gbtc');
-    var separator = new Element('li', {'class': 'gbt gbtb'})
-        .set('html', '<span class="gbts"></span>');
-    separator.inject(ol, 'top');
+    if (document.id('gbz')) {
+        var ol = $(document.id('gbz').getElementsByTagName("ol")[0]);
+    } else if (document.id('gbzc')) {
+        var ol = $(document.id('gbzc'));
+    }
     var tab = new Element('li', {id: 'positionGoogleTab', 'class': 'gbt'}).adopt(
         new Element('a', {href: '#', 'class': 'gbgt'}).set('html',
-            '<span class="gbtb2"></span><span class="gbts"><span style="font-weight: bold;">GooglePosition</span></span>'
+            '<span class="gbtb2"></span><span class="gbts"><span style="font-weight: bold;">GooglePosition</span><span class="gbma"></span></span>'
         )
     );
-    
     var menu = new Element('div').addClass('gbm').set('html',
         '<div class="gbmc"><ol class="gbmcc">\
-            <li id="menu-google-position-options" class="gbkc gbmtc"><a href="#" class="gbmt">Paramètrer l\'extension</a></li>\
-            <li id="menu-google-position-history" class="gbkc gbmtc"><a href="#" class="gbmt">Voir l\'historique</a></li>\
-            <li id="menu-google-position-export" class="gbkc gbmtc"><a href="#" class="gbmt">Exporter les données</a></li>\
-            <li id="menu-google-position-import" class="gbkc gbmtc"><a href="#" class="gbmt">Importer les données</a></li>\
-            <li id="menu-google-position-erase" class="gbkc gbmtc"><a href="#" class="gbmt">Effacer les données</a></li>\
-            <li id="menu-google-position-about" class="gbkc gbmtc"><a href="#" class="gbmt">À propos</a></li>\
+            <li id="menu-google-position-options" class="gbmtc"><a href="#" class="gbmt"><span>Paramètrer l\'extension</span></a></li>\
+            <li id="menu-google-position-history" class="gbmtc"><a href="#" class="gbmt"><span>Voir l\'historique</span></a></li>\
+            <li id="menu-google-position-export" class="gbmtc"><a href="#" class="gbmt"><span>Exporter les données</span></a></li>\
+            <li id="menu-google-position-import" class="gbmtc"><a href="#" class="gbmt"><span>Importer les données</span></a></li>\
+            <li id="menu-google-position-erase" class="gbmtc"><a href="#" class="gbmt"><span>Effacer les données</span></a></li>\
+            <li id="menu-google-position-about" class="gbmtc"><a href="#" class="gbmt"><span>À propos</span></a></li>\
         </ol></div>'
-    ).inject(tab, 'bottom');
-    
-    tab.inject(ol, 'top').addEvent('click', function (e) {
+    ).setStyle("top", 29).inject(tab, 'bottom');
+    menu.getElements("a.gbmt span").setStyles({
+        color: "#000000", "font-weight": "bold"
+    });
+    ol.adopt(tab);
+    tab.addEvent('click', function (e) {
         e.stop();
         this.toggleClass('gbto');
         menu.setStyle('display', this.hasClass('gbto')?'block':'none');
@@ -1050,8 +1027,11 @@ var timer;
 var check = function () {
     if (isGoogle) {
         serp = new GoogleSerp();
-        var menu = document.id('gb_1');
-        if (menu && menu.hasClass('gbz0l')) {
+        var menu = document.id('gbzc');
+        if (!menu) {
+            menu = document.id('gbz'); // old version
+        }
+        if (menu) {
             if (storage.getOption('displayPosition')) {
                 serp.displayPosition();
             }
